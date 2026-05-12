@@ -1,17 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 
 // ── Learners ─────────────────────────────────────────────────────────────────
+const _learnerNames = (import.meta.env.VITE_LEARNER_NAMES || "").split(",");
 const _learnerEmails = (import.meta.env.VITE_LEARNER_EMAILS || "").split(",");
 
-const LEARNERS = [
-  "Illona Addae",
-  "Abraham Jimah Zorwi",
-  "Kofi Frimpong Osei",
-  "Emmanuel Joe Letsu",
-  "Kwadjo Wusu-Ansah",
-  "Broderick Nana Bentil",
-  "Jude Boachie",
-].map((name, i) => ({ name, email: _learnerEmails[i]?.trim() || "" }));
+const LEARNERS = _learnerNames.map((name, i) => ({
+  name: name.trim(),
+  email: _learnerEmails[i]?.trim() || "",
+}));
 
 const EMMANUEL_EMAIL = import.meta.env.VITE_CC_EMAIL || "";
 
