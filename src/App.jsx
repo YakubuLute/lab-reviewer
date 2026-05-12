@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 
 // ── Learners ─────────────────────────────────────────────────────────────────
-const LEARNERS = [
-  { name: "Illona Addae", email: "illona.addae@amalitech.com" },
-  { name: "Abraham Jimah Zorwi", email: "abraham.zorwi@amalitech.com" },
-  { name: "Kofi Frimpong Osei", email: "kofi.osei@amalitech.com" },
-  { name: "Emmanuel Joe Letsu", email: "emmanuel.letsu@amalitech.com" },
-  { name: "Kwadjo Wusu-Ansah", email: "kwadjo.wusu-ansah@amalitech.com" },
-  { name: "Broderick Nana Bentil", email: "broderick.bentil@amalitech.com" },
-  { name: "Jude Boachie", email: "jude.boachie@amalitech.com" },
-];
+const _learnerEmails = (import.meta.env.VITE_LEARNER_EMAILS || "").split(",");
 
-const EMMANUEL_EMAIL = "emmanuel.asaber@amalitech.com";
+const LEARNERS = [
+  "Illona Addae",
+  "Abraham Jimah Zorwi",
+  "Kofi Frimpong Osei",
+  "Emmanuel Joe Letsu",
+  "Kwadjo Wusu-Ansah",
+  "Broderick Nana Bentil",
+  "Jude Boachie",
+].map((name, i) => ({ name, email: _learnerEmails[i]?.trim() || "" }));
+
+const EMMANUEL_EMAIL = import.meta.env.VITE_CC_EMAIL || "";
 
 // ── Lab Data ──────────────────────────────────────────────────────────────────
 const LAB_DATA = {
