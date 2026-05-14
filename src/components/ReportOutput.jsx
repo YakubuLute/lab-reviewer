@@ -9,6 +9,56 @@ export default function ReportOutput({ report, copied, copy, reset }) {
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
 
+  const handleDownloadPDF = () => {
+    const tab = window.open("", "_blank");
+    if (!tab) return;
+    tab.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${report.subject}</title>
+  <style>
+    @media print {
+      @page { size: A4; margin: 0; }
+      body { margin: 0; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+${report.html}
+<div class="no-print" style="
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 9999;
+">
+  <button
+    onclick="window.print()"
+    style="
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 24px rgba(79,70,229,0.45);
+      font-family: 'Segoe UI', Arial, sans-serif;
+    "
+  >
+    🖨️ Save as PDF
+  </button>
+</div>
+</body>
+</html>`);
+    tab.document.close();
+  };
+
   return (
     <>
       {/* Action bar */}
@@ -81,6 +131,26 @@ export default function ReportOutput({ report, copied, copy, reset }) {
               {copied === key ? "✓ Copied!" : `${icon} ${label}`}
             </button>
           ))}
+          <button
+            onClick={handleDownloadPDF}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "10px 16px",
+              background: "rgba(79,70,229,0.15)",
+              border: "1px solid rgba(79,70,229,0.35)",
+              borderRadius: 8,
+              color: "#a5b4fc",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}
+          >
+            🖨️ Download PDF
+          </button>
           <button
             onClick={reset}
             style={{
