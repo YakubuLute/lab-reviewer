@@ -2,6 +2,8 @@ import useReviewForm from "./hooks/useReviewForm";
 import ReviewDetailsCard from "./components/ReviewDetailsCard";
 import LearnerCard from "./components/LearnerCard";
 import LabAttemptCard from "./components/LabAttemptCard";
+import ReviewerNotesCard from "./components/ReviewerNotesCard";
+import CodeInputCard from "./components/CodeInputCard";
 import CriteriaScoringCard from "./components/CriteriaScoringCard";
 import FlagsCard from "./components/FlagsCard";
 import RemarksCard from "./components/RemarksCard";
@@ -33,20 +35,51 @@ export default function App() {
     setReviewerName,
     reviewDate,
     setReviewDate,
+    // Code input
+    codeSource,
+    setCodeSource,
+    repoUrl,
+    setRepoUrl,
+    branch,
+    setBranch,
+    pastedCode,
+    setPastedCode,
+    codeFiles,
+    fetchStatus,
+    fetchError,
+    truncatedNote,
+    // Reviewer notes
+    reviewerNotes,
+    setReviewerNotes,
+    // AI
+    analyzeStatus,
+    analyzeError,
+    aiSuggested,
+    // Derived
     lab,
     maxScore,
     totalScore,
     grade,
     passed,
     isValid,
+    canAnalyze,
+    // Output
     report,
     copied,
+    // Handlers
     handleLearnerSelect,
+    handleFetchRepo,
+    handleAnalyze,
+    handleSendEmail,
     copy,
     handleGenerate,
     reset,
     reportRef,
+    sendStatus,
+    sendError,
   } = useReviewForm();
+
+  const isAnalyzing = analyzeStatus === "analyzing";
 
   return (
     <div
@@ -96,7 +129,7 @@ export default function App() {
             Lab Review Tool
           </h1>
           <p style={{ color: "#475569", fontSize: 14, marginTop: 8 }}>
-            Score a learner → Generate email & Excel row instantly
+            Score a learner, analyze with Claude, generate and send the report
           </p>
         </div>
 
@@ -121,19 +154,151 @@ export default function App() {
           lab={lab}
         />
 
+        {/* Code input + reviewer notes — shown once a lab is selected */}
         {lab && (
-          <CriteriaScoringCard
-            lab={lab}
-            attempt={attempt}
-            scores={scores}
-            setScores={setScores}
-            feedbacks={feedbacks}
-            setFeedbacks={setFeedbacks}
-            totalScore={totalScore}
-            grade={grade}
-            maxScore={maxScore}
-            passed={passed}
-          />
+          <>
+            <ReviewerNotesCard
+              reviewerNotes={reviewerNotes}
+              setReviewerNotes={setReviewerNotes}
+            />
+
+            <CodeInputCard
+              codeSource={codeSource}
+              setCodeSource={setCodeSource}
+              repoUrl={repoUrl}
+              setRepoUrl={setRepoUrl}
+              branch={branch}
+              setBranch={setBranch}
+              pastedCode={pastedCode}
+              setPastedCode={setPastedCode}
+              codeFiles={codeFiles}
+              fetchStatus={fetchStatus}
+              fetchError={fetchError}
+              truncatedNote={truncatedNote}
+              onFetchRepo={handleFetchRepo}
+            />
+
+            {/* Analyze with Claude button */}
+            {!report && (
+              <div style={{ marginBottom: 16 }}>
+                <button
+                  onClick={handleAnalyze}
+                  disabled={!canAnalyze || isAnalyzing}
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    borderRadius: 12,
+                    border: "none",
+                    background:
+                      canAnalyze && !isAnalyzing
+                        ? "linear-gradient(135deg,#7c3aed,#4f46e5)"
+                        : "rgba(255,255,255,0.05)",
+                    color: canAnalyze && !isAnalyzing ? "#fff" : "#334155",
+                    fontSize: 15,
+                    fontWeight: 700,
+                    cursor:
+                      canAnalyze && !isAnalyzing ? "pointer" : "not-allowed",
+                    fontFamily: "inherit",
+                    letterSpacing: "0.02em",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: 14,
+                          height: 14,
+                          border: "2px solid rgba(255,255,255,0.4)",
+                          borderTopColor: "#fff",
+                          borderRadius: "50%",
+                          animation: "spin 0.8s linear infinite",
+                        }}
+                      />
+                      Analyzing with Claude... (20-40 s)
+                    </>
+                  ) : (
+                    "Analyze with Claude"
+                  )}
+                </button>
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+                {analyzeStatus === "error" && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: "10px 14px",
+                      background: "rgba(239,68,68,0.08)",
+                      border: "1px solid rgba(239,68,68,0.25)",
+                      borderRadius: 8,
+                      color: "#fca5a5",
+                      fontSize: 12,
+                    }}
+                  >
+                    Analysis failed: {analyzeError}
+                  </div>
+                )}
+
+                {!canAnalyze && (
+                  <p
+                    style={{
+                      textAlign: "center",
+                      fontSize: 12,
+                      color: "#334155",
+                      marginTop: 6,
+                    }}
+                  >
+                    Fill in reviewer name, select a learner and lab first
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* AI suggestion banner */}
+            {aiSuggested && (
+              <div
+                style={{
+                  padding: "10px 16px",
+                  background: "rgba(124,58,237,0.08)",
+                  border: "1px solid rgba(124,58,237,0.25)",
+                  borderRadius: 10,
+                  marginBottom: 12,
+                  fontSize: 12,
+                  color: "#c4b5fd",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <span style={{ fontSize: 15 }}>AI</span>
+                Scores and comments below were pre-filled by Claude. Review and
+                edit each field before generating the report.
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ─── Criteria scoring ─── */}
+        {lab && (
+          <div id="criteria-section">
+            <CriteriaScoringCard
+              lab={lab}
+              attempt={attempt}
+              scores={scores}
+              setScores={setScores}
+              feedbacks={feedbacks}
+              setFeedbacks={setFeedbacks}
+              totalScore={totalScore}
+              grade={grade}
+              maxScore={maxScore}
+              passed={passed}
+            />
+          </div>
         )}
 
         {lab && (
@@ -177,7 +342,7 @@ export default function App() {
                 letterSpacing: "0.02em",
               }}
             >
-              Generate Report →
+              Generate Report
             </button>
             {!isValid && (
               <p
@@ -202,6 +367,9 @@ export default function App() {
               copied={copied}
               copy={copy}
               reset={reset}
+              onSendEmail={handleSendEmail}
+              sendStatus={sendStatus}
+              sendError={sendError}
             />
           </div>
         )}

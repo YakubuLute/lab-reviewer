@@ -1,7 +1,15 @@
 import { EMMANUEL_EMAIL } from "../data/learners";
 import { S } from "../styles/formStyles";
 
-export default function ReportOutput({ report, copied, copy, reset }) {
+export default function ReportOutput({
+  report,
+  copied,
+  copy,
+  reset,
+  onSendEmail,
+  sendStatus,
+  sendError,
+}) {
   const openInBrowser = () => {
     const blob = new Blob([report.html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
@@ -51,13 +59,16 @@ ${report.html}
       font-family: 'Segoe UI', Arial, sans-serif;
     "
   >
-    🖨️ Save as PDF
+    Save as PDF
   </button>
 </div>
 </body>
 </html>`);
     tab.document.close();
   };
+
+  const isSending = sendStatus === "sending";
+  const sendDone = sendStatus === "done";
 
   return (
     <>
@@ -74,7 +85,7 @@ ${report.html}
         <div
           style={{ fontSize: 15, fontWeight: 700, color: "#22c55e", marginBottom: 4 }}
         >
-          ✅ Report ready!
+          Report ready
         </div>
 
         {/* Email addresses */}
@@ -115,20 +126,112 @@ ${report.html}
           ))}
         </div>
 
-        {/* Copy buttons */}
+        {/* Send Email button */}
+        <div style={{ marginBottom: 14 }}>
+          {sendDone ? (
+            <div
+              style={{
+                padding: "12px 16px",
+                background: "rgba(34,197,94,0.12)",
+                border: "1px solid rgba(34,197,94,0.3)",
+                borderRadius: 10,
+                color: "#22c55e",
+                fontSize: 14,
+                fontWeight: 700,
+                textAlign: "center",
+              }}
+            >
+              Email sent successfully
+            </div>
+          ) : (
+            <button
+              onClick={onSendEmail}
+              disabled={isSending}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: 10,
+                border: "none",
+                background: isSending
+                  ? "rgba(255,255,255,0.05)"
+                  : "linear-gradient(135deg,#16a34a,#15803d)",
+                color: isSending ? "#334155" : "#fff",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: isSending ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                transition: "all 0.15s",
+              }}
+            >
+              {isSending ? (
+                <>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 12,
+                      height: 12,
+                      border: "2px solid rgba(255,255,255,0.4)",
+                      borderTopColor: "#fff",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite",
+                    }}
+                  />
+                  Sending...
+                </>
+              ) : (
+                "Send Email"
+              )}
+            </button>
+          )}
+
+          {sendStatus === "error" && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: "8px 12px",
+                background: "rgba(239,68,68,0.08)",
+                border: "1px solid rgba(239,68,68,0.25)",
+                borderRadius: 8,
+                color: "#fca5a5",
+                fontSize: 12,
+              }}
+            >
+              {sendError}
+            </div>
+          )}
+
+          {!sendDone && (
+            <p
+              style={{
+                fontSize: 11,
+                color: "#334155",
+                marginTop: 6,
+                textAlign: "center",
+              }}
+            >
+              Sends to {report.learnerEmail} and CC&apos;s {EMMANUEL_EMAIL}. Review all fields above before sending.
+            </p>
+          )}
+        </div>
+
+        {/* Copy / download buttons */}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {[
-            { key: "subject", icon: "📋", label: "Copy Subject", value: report.subject },
-            { key: "html", icon: "📧", label: "Copy Email HTML", value: report.html },
-            { key: "excel", icon: "📊", label: "Copy Excel Row", value: report.excelRow },
-            { key: "lemail", icon: "@", label: "Copy To Email", value: report.learnerEmail },
+            { key: "subject", icon: "", label: "Copy Subject", value: report.subject },
+            { key: "html", icon: "", label: "Copy HTML", value: report.html },
+            { key: "excel", icon: "", label: "Copy Excel Row", value: report.excelRow },
+            { key: "lemail", icon: "", label: "Copy To Email", value: report.learnerEmail },
           ].map(({ key, icon, label, value }) => (
             <button
               key={key}
               onClick={() => copy(value, key)}
               style={S.copyBtn(copied, key)}
             >
-              {copied === key ? "✓ Copied!" : `${icon} ${label}`}
+              {copied === key ? "Copied!" : `${icon} ${label}`.trim()}
             </button>
           ))}
           <button
@@ -149,7 +252,7 @@ ${report.html}
               whiteSpace: "nowrap",
             }}
           >
-            🖨️ Download PDF
+            Download PDF
           </button>
           <button
             onClick={reset}
@@ -168,7 +271,7 @@ ${report.html}
               marginLeft: "auto",
             }}
           >
-            ← New Review
+            New Review
           </button>
         </div>
 
@@ -183,8 +286,7 @@ ${report.html}
           }}
         >
           <div style={{ fontSize: 11, color: "#475569", marginBottom: 12 }}>
-            💡 Click inside any field below — it auto-selects. Then press
-            Ctrl+C (or Cmd+C on Mac) to copy.
+            Click inside any field below to auto-select, then press Ctrl+C / Cmd+C to copy.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
@@ -204,6 +306,18 @@ ${report.html}
                 fontSize: 11,
                 resize: "none",
               },
+              ...(report.aiEmailBody
+                ? [
+                    {
+                      label: "AI Plain-Text Email Body",
+                      value: report.aiEmailBody,
+                      rows: 8,
+                      color: "#c4b5fd",
+                      fontSize: 12,
+                      resize: "vertical",
+                    },
+                  ]
+                : []),
               {
                 label: "Email HTML (paste into Outlook HTML mode)",
                 value: report.html,
@@ -278,10 +392,10 @@ ${report.html}
               letterSpacing: ".1em",
             }}
           >
-            📊 Excel Row Preview
+            Excel Row Preview
           </div>
           <div style={{ fontSize: 11, color: "#475569" }}>
-            Tab-separated — paste directly into your sheet
+            Tab-separated
           </div>
         </div>
         <div
@@ -302,11 +416,11 @@ ${report.html}
               overflowX: "auto",
             }}
           >
-            DATE │ LEARNER │ REVIEWER │ LAB │ ATTEMPT │{" "}
+            DATE | LEARNER | REVIEWER | LAB | ATTEMPT |{" "}
             {report.criteriaRows
               .map((c) => c.criterion.split(" ")[0])
-              .join(" │ ")}{" "}
-            │ TOTAL │ REDO │ PLAGIARISM │ STRENGTHS │ GAPS │ OTHER
+              .join(" | ")}{" "}
+            | TOTAL | REDO | PLAGIARISM | STRENGTHS | GAPS | OTHER
           </div>
           <div
             style={{
@@ -354,7 +468,7 @@ ${report.html}
               letterSpacing: ".1em",
             }}
           >
-            📧 Email Preview
+            Email Preview
           </div>
           <button
             onClick={openInBrowser}
@@ -373,7 +487,7 @@ ${report.html}
               fontFamily: "inherit",
             }}
           >
-            🌐 Open in Browser
+            Open in Browser
           </button>
         </div>
         <div style={{ background: "#f8fafc" }}>
@@ -403,10 +517,10 @@ ${report.html}
             color: "#818cf8",
             textTransform: "uppercase",
             letterSpacing: ".1em",
-            marginBottom: 6,
+            marginBottom: 10,
           }}
         >
-          How to Send in Outlook
+          How to Send
         </div>
         <div
           style={{
@@ -419,18 +533,17 @@ ${report.html}
             borderRadius: 8,
           }}
         >
-          ⭐ Recommended: Use the <strong>Open in Browser</strong> method
-          below for the best formatting result in Outlook.
+          Option A: Click &quot;Send Email&quot; above to send directly via the backend (requires SMTP config in server/.env).
+          Option B: Use &quot;Open in Browser&quot; to copy and paste into Outlook manually.
         </div>
         {[
-          "Click 🌐 Open in Browser above — the email opens in a new browser tab",
-          "In the browser tab, press Ctrl+A (Windows) or Cmd+A (Mac) to select all",
+          "Click Open in Browser above",
+          "Press Ctrl+A (Windows) or Cmd+A (Mac) to select all",
           "Press Ctrl+C / Cmd+C to copy the formatted content",
-          "Open Outlook → New Email",
-          "Click inside the email body and press Ctrl+V / Cmd+V to paste — formatting comes in perfectly",
-          `Set To: (use the @ Copy To Email button) and CC: ${EMMANUEL_EMAIL}`,
-          "Copy Subject using 📋 Copy Subject and paste it into the Subject field",
-          "Hit Send",
+          "Open Outlook and start a new email",
+          "Paste into the email body",
+          `Set To: ${report.learnerEmail} and CC: ${EMMANUEL_EMAIL}`,
+          "Paste the subject line and hit Send",
         ].map((text, i) => (
           <div
             key={i}
