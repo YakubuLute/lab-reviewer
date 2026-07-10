@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from './auth/useAuth';
+import { useCohorts } from './data/cohorts';
 import useReviewForm from './hooks/useReviewForm';
 import Sidebar, { View } from './components/Sidebar';
+import CreateCohortModal from './components/CreateCohortModal';
 import MyDayView from './views/MyDayView';
 import CohortDashboardView from './views/CohortDashboardView';
 import ReviewWorkspaceView from './views/ReviewWorkspaceView';
@@ -24,12 +26,36 @@ function PlaceholderView({ title, sub }: { title: string; sub?: string }) {
   );
 }
 
+function NoCohortPlaceholder({ onCreateCohort }: { onCreateCohort: () => void }) {
+  return (
+    <div style={{ maxWidth: 560, margin: '80px auto', padding: '0 40px', textAlign: 'center' }}>
+      <div style={{ background: 'var(--surface)', border: '1px dashed var(--line)', borderRadius: 16, padding: '52px 40px', boxShadow: 'var(--shadow)' }}>
+        <div style={{ fontSize: 32, marginBottom: 16 }}>📋</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)', marginBottom: 10 }}>No cohort yet</div>
+        <p style={{ fontSize: 13, color: 'var(--ink2)', margin: '0 0 22px', lineHeight: 1.6 }}>
+          Create your first cohort to start managing learners, labs, and reviews.
+        </p>
+        <button
+          onClick={onCreateCohort}
+          style={{ background: 'var(--orange)', color: '#fff', border: 'none', padding: '12px 22px', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--sans)', boxShadow: '0 3px 10px rgba(242,107,33,.28)' }}
+        >
+          + Create cohort
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Root ───────────────────────────────────────────────────────────────────
 export default function App() {
   const { user, register, login, logout } = useAuth();
   const [authScreen, setAuthScreen] = useState<'login' | 'register'>('login');
   const [activeView, setActiveView] = useState<View>('today');
+  const [createCohortOpen, setCreateCohortOpen] = useState(false);
   const form = useReviewForm();
+
+  // cohorts is always called but only used when user is present
+  const cohortsCtx = useCohorts(user?.id ?? '__guest__');
 
   // ── Auth gate ────────────────────────────────────────────────────────────
   if (!user) {
@@ -57,23 +83,54 @@ export default function App() {
     setActiveView('workspace');
   }
 
+  const { cohorts, currentCohort, setCurrentCohortId, createCohort, addLearner, removeLearner, addLab, updateLabDue, removeLab } = cohortsCtx;
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+      {createCohortOpen && (
+        <CreateCohortModal
+          onCreate={(name, track) => createCohort(name, track)}
+          onClose={() => setCreateCohortOpen(false)}
+        />
+      )}
       <Sidebar
         activeView={activeView}
         setView={setActiveView}
         user={user}
         onLogout={logout}
+        cohorts={cohorts}
+        currentCohort={currentCohort}
+        onSelectCohort={setCurrentCohortId}
+        onCreateCohort={() => setCreateCohortOpen(true)}
       />
 
       <main style={{ flex: 1, minWidth: 0, height: '100vh', overflowY: 'auto' }}>
 
         {activeView === 'today' && (
-          <MyDayView firstName={user.firstName} onStartReview={startReview} />
+          <MyDayView
+            firstName={user.firstName}
+            cohorts={cohorts}
+            onStartReview={startReview}
+            onSelectCohort={(id) => { setCurrentCohortId(id); setActiveView('dashboard'); }}
+            onCreateCohort={() => setCreateCohortOpen(true)}
+          />
         )}
 
         {activeView === 'dashboard' && (
-          <CohortDashboardView onNewReview={() => setActiveView('workspace')} />
+          currentCohort ? (
+            <CohortDashboardView
+              cohort={currentCohort}
+              firstName={user.firstName}
+              onNewReview={() => setActiveView('workspace')}
+              onAddLearner={(name, email) => addLearner(currentCohort.id, name, email)}
+              onRemoveLearner={(lid) => removeLearner(currentCohort.id, lid)}
+              onAddLab={(name, due) => addLab(currentCohort.id, name, due)}
+              onUpdateLabDue={(labId, due) => updateLabDue(currentCohort.id, labId, due)}
+              onRemoveLab={(labId) => removeLab(currentCohort.id, labId)}
+            />
+          ) : (
+            <NoCohortPlaceholder onCreateCohort={() => setCreateCohortOpen(true)} />
+          )
         )}
 
         {activeView === 'workspace' && (

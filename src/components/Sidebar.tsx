@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { getInitials } from '../data/learnerColors';
 import type { AuthUser } from '../auth/useAuth';
+import type { Cohort } from '../data/cohorts';
 
 export type View = 'today' | 'dashboard' | 'workspace' | 'rubrics' | 'report' | 'profile';
 
@@ -8,6 +10,10 @@ interface Props {
   setView: (v: View) => void;
   user: AuthUser;
   onLogout: () => void;
+  cohorts: Cohort[];
+  currentCohort: Cohort | null;
+  onSelectCohort: (id: string) => void;
+  onCreateCohort: () => void;
 }
 
 // ── SVG nav icons ─────────────────────────────────────────────────────────
@@ -75,9 +81,10 @@ const NAV_ITEMS: Array<{ id: View; label: string; icon: React.ReactElement }> = 
   { id: 'profile',   label: 'Learners',          icon: <IconLearners /> },
 ];
 
-export default function Sidebar({ activeView, setView, user, onLogout }: Props) {
+export default function Sidebar({ activeView, setView, user, onLogout, cohorts, currentCohort, onSelectCohort, onCreateCohort }: Props) {
   const displayName = `${user.firstName} ${user.lastName}`;
   const initials = getInitials(displayName);
+  const [cohortPickerOpen, setCohortPickerOpen] = useState(false);
 
   return (
     <aside style={{
@@ -99,14 +106,64 @@ export default function Sidebar({ activeView, setView, user, onLogout }: Props) 
         </div>
       </div>
 
-      {/* Cohort pill */}
-      <div style={{ padding: '0 12px 10px' }}>
-        <div style={{ background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 10, padding: '8px 11px' }}>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ink3)', letterSpacing: '.07em', marginBottom: 2 }}>COHORT</div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            NSP 2026 — Backend
+      {/* Cohort picker */}
+      <div style={{ padding: '0 12px 10px', position: 'relative' }}>
+        <button
+          onClick={() => setCohortPickerOpen((o) => !o)}
+          style={{
+            width: '100%', background: 'var(--bg)', border: '1px solid var(--line)',
+            borderRadius: 10, padding: '8px 11px', textAlign: 'left', cursor: 'pointer',
+            fontFamily: 'var(--sans)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ink3)', letterSpacing: '.07em', marginBottom: 2 }}>COHORT</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {currentCohort ? currentCohort.name : 'No cohort'}
+            </div>
           </div>
-        </div>
+          <span style={{ fontSize: 9, color: 'var(--ink3)', flexShrink: 0 }}>▼</span>
+        </button>
+
+        {cohortPickerOpen && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 12, right: 12, zIndex: 100,
+            background: '#fff', border: '1px solid var(--line)', borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(20,24,29,.14)', overflow: 'hidden', marginTop: 4,
+          }}>
+            {cohorts.length > 0 && (
+              <>
+                {cohorts.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => { onSelectCohort(c.id); setCohortPickerOpen(false); }}
+                    style={{
+                      width: '100%', padding: '9px 12px', background: c.id === currentCohort?.id ? 'var(--orange-t)' : 'transparent',
+                      border: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: 'var(--sans)',
+                      borderBottom: '1px solid var(--line2)',
+                    }}
+                    onMouseEnter={(e) => { if (c.id !== currentCohort?.id) (e.currentTarget as HTMLElement).style.background = 'var(--line2)'; }}
+                    onMouseLeave={(e) => { if (c.id !== currentCohort?.id) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 600, color: c.id === currentCohort?.id ? 'var(--orange-d)' : 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.name}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: 'var(--ink3)', marginTop: 1 }}>{c.track}</div>
+                  </button>
+                ))}
+              </>
+            )}
+            <button
+              onClick={() => { onCreateCohort(); setCohortPickerOpen(false); }}
+              style={{ width: '100%', padding: '9px 12px', background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: 'var(--sans)', display: 'flex', alignItems: 'center', gap: 7 }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--line2)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              <span style={{ fontSize: 14, color: 'var(--orange)', fontWeight: 700, lineHeight: 1 }}>+</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--orange-d)' }}>Create new cohort</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
