@@ -59,7 +59,7 @@ export default function App() {
         </div>
 
         {/* ── Setup row: reviewer / learner / lab ─────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: 12, marginBottom: 16, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, auto) 1fr 1fr', gap: 12, marginBottom: 16, alignItems: 'start' }}>
           <ReviewDetailsCard
             reviewerName={reviewerName} setReviewerName={setReviewerName}
             reviewDate={reviewDate} setReviewDate={setReviewDate}
