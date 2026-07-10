@@ -1,184 +1,115 @@
+import { useState } from 'react';
 import useReviewForm from './hooks/useReviewForm';
-import ReviewDetailsCard from './components/ReviewDetailsCard';
-import LearnerCard from './components/LearnerCard';
-import LabAttemptCard from './components/LabAttemptCard';
-import CodeInputCard from './components/CodeInputCard';
-import CodeReviewAssistCard from './components/CodeReviewAssistCard';
-import CriteriaScoringCard from './components/CriteriaScoringCard';
-import FlagsCard from './components/FlagsCard';
-import RemarksCard from './components/RemarksCard';
+import Sidebar, { View } from './components/Sidebar';
+import MyDayView from './views/MyDayView';
+import CohortDashboardView from './views/CohortDashboardView';
+import ReviewWorkspaceView from './views/ReviewWorkspaceView';
 import ReportOutput from './components/ReportOutput';
-import LiveScorePanel from './components/LiveScorePanel';
+
+// ── Placeholder view ───────────────────────────────────────────────────────
+function PlaceholderView({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <div style={{ maxWidth: 760, margin: '60px auto', padding: '0 40px', textAlign: 'center' }}>
+      <div style={{ background: 'var(--surface)', border: '1px dashed var(--line)', borderRadius: 16, padding: '52px 40px', boxShadow: 'var(--shadow)' }}>
+        <div style={{ fontSize: 30, color: 'var(--line2)', marginBottom: 16 }}>○</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 8 }}>{title}</div>
+        {sub && <p style={{ fontSize: 13, color: 'var(--ink2)', margin: 0, lineHeight: 1.6 }}>{sub}</p>}
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
+  const [activeView, setActiveView] = useState<View>('today');
   const form = useReviewForm();
-  const {
-    learnerName, learnerEmail, selectedLab, setSelectedLab, attempt, setAttempt,
-    scores, setScores, feedbacks, setFeedbacks,
-    strengths, setStrengths, improvements, setImprovements, otherRemarks, setOtherRemarks,
-    redoLab, setRedoLab, plagiarism, setPlagiarism,
-    reviewerName, setReviewerName, reviewDate, setReviewDate,
-    codeSource, setCodeSource, repoUrl, setRepoUrl, branch, setBranch,
-    pastedCode, setPastedCode, codeFiles, fetchStatus, fetchError, truncatedNote,
-    reviewerNotes, setReviewerNotes,
-    assistMode, setAssistMode,
-    guideReady, guideGenerating, guideGenPct,
-    guideNotes, setGuideNotes,
-    guideDone, setGuideDone,
-    guideSkipped, setGuideSkipped,
-    guideExtra, setGuideExtra,
-    newGuideQ, setNewGuideQ,
-    openSections, setOpenSections,
-    liveSession, setLiveSession,
-    handleGenerateGuide, handleRegenerateGuide,
-    analyzeStatus, analyzeError, aiSuggested,
-    lab, maxScore, totalScore, grade, passed, isValid, canAnalyze,
-    report, copied,
-    handleLearnerSelect, handleFetchRepo, handleAnalyze, handleSendEmail,
-    copy, handleGenerate, reset, reportRef,
-    sendStatus, sendError,
-  } = form;
+
+  // Pre-populate form from the My Day queue and navigate to workspace
+  function startReview(learnerName: string, labName: string, attempt: string) {
+    if (learnerName) form.handleLearnerSelect(learnerName);
+    if (labName)     form.setSelectedLab(labName);
+    if (attempt)     form.setAttempt(attempt);
+    setActiveView('workspace');
+  }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--sans)', color: 'var(--ink)', padding: '24px 20px 48px' }}>
-      <div style={{ maxWidth: 1160, margin: '0 auto' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+      <Sidebar
+        activeView={activeView}
+        setView={setActiveView}
+        reviewerName={form.reviewerName}
+      />
 
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 600, letterSpacing: '.12em', color: 'var(--orange-d)', textTransform: 'uppercase', marginBottom: 4 }}>
-              AmaliTech · Backend Module
-            </div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.01em' }}>
-              LabLens
-            </h1>
-            <p style={{ color: 'var(--ink3)', fontSize: 12.5, marginTop: 2 }}>
-              Score · Assist · Analyze · Report
-            </p>
-          </div>
-        </div>
+      <main style={{ flex: 1, minWidth: 0, height: '100vh', overflowY: 'auto' }}>
 
-        {/* ── Setup row: reviewer / learner / lab ─────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, auto) 1fr 1fr', gap: 12, marginBottom: 16, alignItems: 'start' }}>
-          <ReviewDetailsCard
-            reviewerName={reviewerName} setReviewerName={setReviewerName}
-            reviewDate={reviewDate} setReviewDate={setReviewDate}
+        {activeView === 'today' && (
+          <MyDayView onStartReview={startReview} />
+        )}
+
+        {activeView === 'dashboard' && (
+          <CohortDashboardView onNewReview={() => setActiveView('workspace')} />
+        )}
+
+        {activeView === 'workspace' && (
+          <ReviewWorkspaceView
+            form={form}
+            onGoReport={() => setActiveView('report')}
           />
-          <LearnerCard
-            learnerName={learnerName} learnerEmail={learnerEmail}
-            handleLearnerSelect={handleLearnerSelect}
+        )}
+
+        {activeView === 'rubrics' && (
+          <PlaceholderView
+            title="Rubrics"
+            sub="Detailed scoring criteria for each lab module will appear here."
           />
-          <LabAttemptCard
-            selectedLab={selectedLab} setSelectedLab={setSelectedLab}
-            attempt={attempt} setAttempt={setAttempt} lab={lab}
-          />
-        </div>
+        )}
 
-        {/* ── Review Workspace (two columns) ──────────────────────────────── */}
-        {lab ? (
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-
-            {/* Left column: numbered step cards */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-
-              {/* 01 · Code Intake */}
-              <CodeInputCard
-                codeSource={codeSource} setCodeSource={setCodeSource}
-                repoUrl={repoUrl} setRepoUrl={setRepoUrl}
-                branch={branch} setBranch={setBranch}
-                pastedCode={pastedCode} setPastedCode={setPastedCode}
-                codeFiles={codeFiles} fetchStatus={fetchStatus}
-                fetchError={fetchError} truncatedNote={truncatedNote}
-                onFetchRepo={handleFetchRepo}
-              />
-
-              {/* 02 · Code Review Assist */}
-              <CodeReviewAssistCard
-                learnerName={learnerName}
-                selectedLab={selectedLab}
-                reviewerNotes={reviewerNotes}
-                setReviewerNotes={setReviewerNotes}
-                assistMode={assistMode} setAssistMode={setAssistMode}
-                guideReady={guideReady}
-                guideGenerating={guideGenerating}
-                guideGenPct={guideGenPct}
-                guideNotes={guideNotes} setGuideNotes={setGuideNotes}
-                guideDone={guideDone} setGuideDone={setGuideDone}
-                guideSkipped={guideSkipped} setGuideSkipped={setGuideSkipped}
-                guideExtra={guideExtra} setGuideExtra={setGuideExtra}
-                newGuideQ={newGuideQ} setNewGuideQ={setNewGuideQ}
-                openSections={openSections} setOpenSections={setOpenSections}
-                liveSession={liveSession} setLiveSession={setLiveSession}
-                onGenerate={handleGenerateGuide}
-                onRegenerate={handleRegenerateGuide}
-              />
-
-              {/* Analyze error */}
-              {analyzeStatus === 'error' && (
-                <div style={{ padding: '10px 14px', background: 'var(--red-t)', border: '1px solid rgba(217,67,74,.2)', borderRadius: 11, color: 'var(--red)', fontSize: 12, marginBottom: 12 }}>
-                  Analysis failed: {analyzeError}
-                </div>
-              )}
-
-              {/* 03 · Criteria Scoring */}
-              <div id="criteria-section">
-                <CriteriaScoringCard
-                  lab={lab} attempt={attempt}
-                  scores={scores} setScores={setScores}
-                  feedbacks={feedbacks} setFeedbacks={setFeedbacks}
-                  totalScore={totalScore} grade={grade} maxScore={maxScore} passed={passed}
+        {activeView === 'report' && (
+          form.report ? (
+            <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 40px 70px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+                <button
+                  onClick={() => setActiveView('workspace')}
+                  style={{ background: 'transparent', border: '1px solid var(--line)', borderRadius: 9, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, color: 'var(--ink2)', cursor: 'pointer', fontFamily: 'var(--sans)' }}
+                >
+                  ← Back to workspace
+                </button>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>Report &amp; Send</div>
+              </div>
+              <div ref={form.reportRef}>
+                <ReportOutput
+                  report={form.report}
+                  copied={form.copied}
+                  copy={form.copy}
+                  reset={() => { form.reset(); setActiveView('today'); }}
+                  onSendEmail={form.handleSendEmail}
+                  sendStatus={form.sendStatus as 'idle' | 'sending' | 'done' | 'error'}
+                  sendError={form.sendError}
                 />
               </div>
-
-              {/* Flags */}
-              <FlagsCard redoLab={redoLab} setRedoLab={setRedoLab} plagiarism={plagiarism} setPlagiarism={setPlagiarism} />
-
-              {/* 04 · Remarks */}
-              <RemarksCard
-                strengths={strengths} setStrengths={setStrengths}
-                improvements={improvements} setImprovements={setImprovements}
-                otherRemarks={otherRemarks} setOtherRemarks={setOtherRemarks}
-              />
-
-              {/* Report output */}
-              {report && (
-                <div ref={reportRef}>
-                  <ReportOutput
-                    report={report} copied={copied} copy={copy} reset={reset}
-                    onSendEmail={handleSendEmail} sendStatus={sendStatus} sendError={sendError}
-                  />
-                </div>
-              )}
             </div>
-
-            {/* Right column: live score + actions (sticky) */}
-            <div style={{ width: 280, flexShrink: 0, position: 'sticky', top: 20 }}>
-              <LiveScorePanel
-                lab={lab} attempt={attempt} scores={scores}
-                totalScore={totalScore} maxScore={maxScore} grade={grade} passed={passed}
-                redoLab={redoLab} plagiarism={plagiarism}
-                isValid={isValid} canAnalyze={canAnalyze}
-                analyzeStatus={analyzeStatus} aiSuggested={aiSuggested}
-                isValid2={isValid} onAnalyze={handleAnalyze} onGenerate={handleGenerate}
-                report={report}
-              />
-            </div>
-          </div>
-        ) : (
-          /* Empty state when no lab selected */
-          <div style={{
-            textAlign: 'center', padding: '48px 24px',
-            background: 'var(--surface)', border: '1px solid var(--line)',
-            borderRadius: 14, boxShadow: 'var(--shadow)',
-          }}>
-            <div style={{ fontSize: 32, marginBottom: 12, color: 'var(--line)' }}>○</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink2)', marginBottom: 6 }}>Select a learner and lab to begin</div>
-            <p style={{ fontSize: 13, color: 'var(--ink3)', maxWidth: 380, margin: '0 auto', lineHeight: 1.6 }}>
-              Fill in reviewer details, choose a learner, and pick a lab module above to open the review workspace.
-            </p>
-          </div>
+          ) : (
+            <PlaceholderView
+              title="No report yet"
+              sub="Complete a review in the Review Workspace and click Preview report to generate a report."
+            />
+          )
         )}
-      </div>
+
+        {activeView === 'profile' && (
+          <PlaceholderView
+            title="Learners"
+            sub="Manage the cohort roster, view learner history, and track progress here."
+          />
+        )}
+
+        {activeView === 'states' && (
+          <PlaceholderView
+            title="UI States"
+            sub="Design system states, component gallery, and accessibility checks will appear here."
+          />
+        )}
+
+      </main>
     </div>
   );
 }
