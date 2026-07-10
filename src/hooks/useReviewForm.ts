@@ -6,6 +6,10 @@ import { RATING_LABELS, PASSING_SCORE, getWeight, getMaxScore, gradeInfo } from 
 import { buildEmailHTML } from '../builders/buildEmailHTML';
 import { buildExcelRow } from '../builders/buildExcelRow';
 import { fetchRepo, analyzeCode, sendEmail } from '../lib/api';
+import {
+  GUIDE_DATA, LAB_TO_GUIDE, compileGuideNotes,
+  type ExtraQuestion,
+} from '../data/guides';
 
 type FetchStatus = 'idle' | 'fetching' | 'done' | 'error';
 type AnalyzeStatus = 'idle' | 'analyzing' | 'done' | 'error';
@@ -40,8 +44,21 @@ export default function useReviewForm() {
   const [fetchError, setFetchError] = useState('');
   const [truncatedNote, setTruncatedNote] = useState('');
 
-  // ── Reviewer notes ────────────────────────────────────────────────────────
+  // ── Reviewer notes (the seam — written by Assist compile or freeform) ─────
   const [reviewerNotes, setReviewerNotes] = useState('');
+
+  // ── Code Review Assist state ───────────────────────────────────────────────
+  const [assistMode, setAssistMode] = useState<'guided' | 'freeform'>('guided');
+  const [guideReady, setGuideReady] = useState(false);
+  const [guideGenerating, setGuideGenerating] = useState(false);
+  const [guideGenPct, setGuideGenPct] = useState(0);
+  const [guideNotes, setGuideNotes] = useState<Record<string, string>>({});
+  const [guideDone, setGuideDone] = useState<Record<string, boolean>>({});
+  const [guideSkipped, setGuideSkipped] = useState<Record<string, boolean>>({});
+  const [guideExtra, setGuideExtra] = useState<ExtraQuestion[]>([]);
+  const [newGuideQ, setNewGuideQ] = useState('');
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [liveSession, setLiveSession] = useState(false);
 
   // ── AI state ──────────────────────────────────────────────────────────────
   const [analyzeStatus, setAnalyzeStatus] = useState<AnalyzeStatus>('idle');
@@ -63,6 +80,7 @@ export default function useReviewForm() {
     setLearnerEmail(found ? found.email : '');
   };
 
+  // Reset scores when lab changes
   useEffect(() => {
     if (selectedLab) {
       const init: Record<string, number> = {};
@@ -73,6 +91,33 @@ export default function useReviewForm() {
       setAiEmailBody('');
     }
   }, [selectedLab]);
+
+  // Reset Assist state when context changes (learner / lab / attempt)
+  useEffect(() => {
+    setAssistMode('guided');
+    setGuideReady(false);
+    setGuideGenerating(false);
+    setGuideGenPct(0);
+    setGuideNotes({});
+    setGuideDone({});
+    setGuideSkipped({});
+    setGuideExtra([]);
+    setNewGuideQ('');
+    setOpenSections({});
+    setLiveSession(false);
+    setReviewerNotes('');
+  }, [learnerName, selectedLab, attempt]);
+
+  // Compile guided answers → reviewer notes whenever they change
+  useEffect(() => {
+    if (!guideReady || assistMode !== 'guided' || !selectedLab) return;
+    const guideId = LAB_TO_GUIDE[selectedLab];
+    if (!guideId) return;
+    const guide = GUIDE_DATA[guideId];
+    if (!guide) return;
+    const compiled = compileGuideNotes(guide, learnerName, selectedLab, guideNotes, guideSkipped, guideExtra);
+    setReviewerNotes(compiled);
+  }, [guideNotes, guideSkipped, guideExtra, guideReady, assistMode, selectedLab, learnerName]);
 
   const weightedScore = (id: string, base: number): string =>
     (((scores[id] ?? 0) / 5) * getWeight(base, attempt)).toFixed(1);
@@ -85,6 +130,38 @@ export default function useReviewForm() {
   const passed = parseFloat(totalScore) >= PASSING_SCORE;
   const isValid = !!(learnerName && learnerEmail && selectedLab && reviewerName && reviewDate);
   const canAnalyze = isValid && !!lab;
+
+  // ── Guide generate / regenerate ───────────────────────────────────────────
+  const handleGenerateGuide = () => {
+    const guideId = LAB_TO_GUIDE[selectedLab ?? ''];
+    if (!guideId || !GUIDE_DATA[guideId]) return;
+
+    setGuideGenerating(true);
+    setGuideReady(false);
+    setGuideGenPct(0);
+    setGuideNotes({});
+    setGuideDone({});
+    setGuideSkipped({});
+    setGuideExtra([]);
+    setOpenSections({});
+
+    let pct = 0;
+    const timer = setInterval(() => {
+      pct = Math.min(pct + 8, 100);
+      setGuideGenPct(pct);
+      if (pct >= 100) {
+        clearInterval(timer);
+        setTimeout(() => {
+          setGuideGenerating(false);
+          setGuideReady(true);
+        }, 200);
+      }
+    }, 100);
+  };
+
+  const handleRegenerateGuide = () => {
+    handleGenerateGuide();
+  };
 
   // ── GitHub fetch ──────────────────────────────────────────────────────────
   const handleFetchRepo = async () => {
@@ -224,6 +301,18 @@ export default function useReviewForm() {
     codeSource, setCodeSource, repoUrl, setRepoUrl, branch, setBranch,
     pastedCode, setPastedCode, codeFiles, fetchStatus, fetchError, truncatedNote,
     reviewerNotes, setReviewerNotes,
+    // Assist
+    assistMode, setAssistMode,
+    guideReady, guideGenerating, guideGenPct,
+    guideNotes, setGuideNotes,
+    guideDone, setGuideDone,
+    guideSkipped, setGuideSkipped,
+    guideExtra, setGuideExtra,
+    newGuideQ, setNewGuideQ,
+    openSections, setOpenSections,
+    liveSession, setLiveSession,
+    handleGenerateGuide, handleRegenerateGuide,
+    // AI
     analyzeStatus, analyzeError, aiSuggested,
     sendStatus, sendError,
     lab, maxScore, totalScore, grade, passed, isValid, canAnalyze,

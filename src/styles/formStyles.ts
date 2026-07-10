@@ -1,67 +1,76 @@
 import type { CSSProperties } from 'react';
 
-interface Styles {
-  card: CSSProperties;
-  label: CSSProperties;
-  slab: CSSProperties;
-  input: CSSProperties;
-  copyBtn: (copied: string, key: string) => CSSProperties;
-}
-
-export const S: Styles = {
+export const S = {
   card: {
-    background: 'rgba(255,255,255,0.02)',
-    border: '1px solid rgba(255,255,255,0.07)',
+    background: 'var(--surface)',
+    border: '1px solid var(--line)',
     borderRadius: 14,
-    padding: 24,
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 12,
-    color: '#475569',
-    marginBottom: 6,
-    fontWeight: 600,
-    display: 'block',
-  },
-  slab: {
-    fontSize: 12,
+    boxShadow: 'var(--shadow)',
+    marginBottom: 12,
+    overflow: 'hidden',
+  } as CSSProperties,
+
+  cardHeader: {
+    padding: '15px 20px',
+    borderBottom: '1px solid var(--line2)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  } as CSSProperties,
+
+  cardBody: {
+    padding: '18px 20px 20px',
+  } as CSSProperties,
+
+  stepNum: {
+    fontFamily: 'var(--mono)',
+    fontSize: 13,
     fontWeight: 700,
-    color: '#4f46e5',
-    textTransform: 'uppercase',
-    letterSpacing: '.1em',
-    marginBottom: 16,
-  },
+    color: 'var(--orange)',
+  } as CSSProperties,
+
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--ink)',
+  } as CSSProperties,
+
+  label: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--ink3)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '.07em',
+    marginBottom: 5,
+    display: 'block',
+  } as CSSProperties,
+
   input: {
     width: '100%',
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 8,
+    background: 'var(--surface)',
+    border: '1px solid var(--line)',
+    borderRadius: 9,
     padding: '10px 12px',
-    color: '#f1f5f9',
-    fontSize: 14,
-    outline: 'none',
-    boxSizing: 'border-box',
-    fontFamily: 'inherit',
-    transition: 'border-color 0.2s',
-  },
+    color: 'var(--ink)',
+    fontSize: 13,
+    fontFamily: 'var(--sans)',
+    transition: 'border-color 0.15s',
+    boxSizing: 'border-box' as const,
+  } as CSSProperties,
+
   copyBtn: (copied: string, key: string): CSSProperties => ({
     display: 'flex',
     alignItems: 'center',
     gap: 6,
-    padding: '10px 16px',
-    background:
-      copied === key
-        ? 'rgba(34,197,94,0.15)'
-        : copied === key + '_fail'
-          ? 'rgba(239,68,68,0.1)'
-          : 'rgba(99,102,241,0.15)',
-    border: `1px solid ${copied === key ? 'rgba(34,197,94,0.4)' : 'rgba(99,102,241,0.3)'}`,
-    borderRadius: 8,
-    color: copied === key ? '#22c55e' : '#818cf8',
-    fontSize: 13,
+    padding: '9px 14px',
+    background: copied === key ? 'var(--green-t)' : 'var(--line2)',
+    border: `1px solid ${copied === key ? '#C7EAD8' : 'var(--line)'}`,
+    borderRadius: 9,
+    color: copied === key ? 'var(--green-d)' : 'var(--ink2)',
+    fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
-    fontFamily: 'inherit',
+    fontFamily: 'var(--sans)',
     transition: 'all 0.2s',
     whiteSpace: 'nowrap',
   }),

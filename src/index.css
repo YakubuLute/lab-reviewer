@@ -1,10 +1,106 @@
-* {
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+*, *::before, *::after {
   padding: 0;
   margin: 0;
   box-sizing: border-box;
 }
 
+:root {
+  --bg:       #F4F5F7;
+  --surface:  #FFFFFF;
+  --ink:      #15181D;
+  --ink2:     #576070;
+  --ink3:     #8A93A2;
+  --line:     #E7E9EE;
+  --line2:    #F0F2F5;
+
+  --orange:   #F26B21;
+  --orange-d: #CF5310;
+  --orange-t: #FFF1E8;
+  --orange-t2:#FBD9C2;
+
+  --ai:       #5B59E0;
+  --ai-d:     #4644C2;
+  --ai-t:     #EEEEFC;
+  --ai-line:  #CFCDF6;
+
+  --green:    #16A36A;
+  --green-d:  #0F7C50;
+  --green-t:  #E6F6EF;
+
+  --amber:    #D98A0B;
+  --amber-t:  #FBF1DC;
+
+  --red:      #D9434A;
+  --red-t:    #FCEAEA;
+
+  --blue:     #2A57C9;
+  --blue-t:   #E7EEFB;
+
+  --shadow:   0 1px 2px rgba(20,24,29,.04), 0 1px 3px rgba(20,24,29,.05);
+  --shadow-l: 0 6px 22px rgba(20,24,29,.09);
+
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
 
 body {
-  background: #090f1d;
+  background: var(--bg);
+  font-family: var(--sans);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--ai-line) !important;
+}
+
+::placeholder {
+  color: var(--ink3);
+}
+
+select option {
+  background: #fff;
+  color: var(--ink);
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--line2);
+  border-radius: 999px;
+  height: 5px;
+  cursor: pointer;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--orange);
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
+}
+
+input[type=date]::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+@keyframes ll-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ll-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+@keyframes ll-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
