@@ -10,8 +10,10 @@ interface Props {
 export default function ReviewDetailsCard({ reviewerName, setReviewerName, reviewDate, setReviewDate }: Props) {
   return (
     <div style={S.card}>
-      <div style={S.slab}>Review Details</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={S.cardHeader}>
+        <span style={S.cardTitle}>Review Details</span>
+      </div>
+      <div style={{ ...S.cardBody, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
           <label style={S.label}>Reviewer Name</label>
           <input type="text" value={reviewerName} onChange={(e) => setReviewerName(e.target.value)} placeholder="Your name" style={S.input} />
