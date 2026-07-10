@@ -100,12 +100,6 @@ export default function App() {
           <LearnersView />
         )}
 
-        {activeView === 'states' && (
-          <PlaceholderView
-            title="UI States"
-            sub="Design system states, component gallery, and accessibility checks will appear here."
-          />
-        )}
 
       </main>
     </div>

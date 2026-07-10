@@ -1,6 +1,6 @@
 import { getInitials } from '../data/learnerColors';
 
-export type View = 'today' | 'dashboard' | 'workspace' | 'rubrics' | 'report' | 'profile' | 'states';
+export type View = 'today' | 'dashboard' | 'workspace' | 'rubrics' | 'report' | 'profile';
 
 interface Props {
   activeView: View;
@@ -64,14 +64,6 @@ const IconLearners = () => (
   </svg>
 );
 
-const IconStates = () => (
-  <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1.5 5L7.5 2L13.5 5L7.5 8L1.5 5Z"/>
-    <path d="M1.5 8L7.5 11L13.5 8"/>
-    <path d="M1.5 11L7.5 14L13.5 11"/>
-  </svg>
-);
-
 const NAV_ITEMS: Array<{ id: View; label: string; icon: React.ReactElement }> = [
   { id: 'today',     label: 'My Day',            icon: <IconToday /> },
   { id: 'dashboard', label: 'Cohort Dashboard',  icon: <IconDashboard /> },
@@ -79,7 +71,6 @@ const NAV_ITEMS: Array<{ id: View; label: string; icon: React.ReactElement }> = 
   { id: 'rubrics',   label: 'Rubrics',           icon: <IconRubrics /> },
   { id: 'report',    label: 'Report & Send',     icon: <IconReport /> },
   { id: 'profile',   label: 'Learners',          icon: <IconLearners /> },
-  { id: 'states',    label: 'UI States',         icon: <IconStates /> },
 ];
 
 export default function Sidebar({ activeView, setView, reviewerName }: Props) {
@@ -144,19 +135,6 @@ export default function Sidebar({ activeView, setView, reviewerName }: Props) {
 
       {/* Spacer */}
       <div style={{ flex: 1 }} />
-
-      {/* AI Analysis card */}
-      <div style={{ padding: '0 14px 14px' }}>
-        <div style={{ background: 'var(--orange-t)', border: '1px solid var(--orange-t2)', borderRadius: 11, padding: '13px 14px' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--orange-d)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--orange)', display: 'inline-block' }} />
-            AI ANALYSIS ACTIVE
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--ink2)', lineHeight: 1.5, marginTop: 6 }}>
-            Grounded in real code. Every suggestion is yours to confirm.
-          </div>
-        </div>
-      </div>
 
       {/* User profile */}
       <div style={{ borderTop: '1px solid var(--line2)', padding: '12px 14px' }}>
