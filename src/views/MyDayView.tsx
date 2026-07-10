@@ -5,6 +5,7 @@ interface StartReviewFn {
 }
 
 interface Props {
+  firstName: string;
   onStartReview: StartReviewFn;
 }
 
@@ -39,7 +40,7 @@ function normalizeLab(lab: string): string {
   return lab.replace('—', '-').replace('Task Tracker - Database', 'Task Tracker - Database');
 }
 
-export default function MyDayView({ onStartReview }: Props) {
+export default function MyDayView({ firstName, onStartReview }: Props) {
   const now = new Date();
   const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
   const dateStr = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
@@ -54,7 +55,7 @@ export default function MyDayView({ onStartReview }: Props) {
           {dayName}, {dateStr}
         </div>
         <h1 style={{ fontSize: 27, fontWeight: 700, letterSpacing: '-.025em', margin: '5px 0 0', color: 'var(--ink)' }}>
-          {greeting}, Yakubu
+          {greeting}, {firstName}
         </h1>
         <p style={{ fontSize: 14, color: 'var(--ink2)', margin: '7px 0 0' }}>
           Everything waiting on you — across all 2 of your cohorts.

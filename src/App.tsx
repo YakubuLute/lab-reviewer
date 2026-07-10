@@ -1,11 +1,15 @@
 import { useState } from 'react';
+import { useAuth } from './auth/useAuth';
 import useReviewForm from './hooks/useReviewForm';
 import Sidebar, { View } from './components/Sidebar';
 import MyDayView from './views/MyDayView';
 import CohortDashboardView from './views/CohortDashboardView';
 import ReviewWorkspaceView from './views/ReviewWorkspaceView';
 import LearnersView from './views/LearnersView';
+import RubricsView from './views/RubricsView';
 import ReportOutput from './components/ReportOutput';
+import LoginView from './views/LoginView';
+import RegisterView from './views/RegisterView';
 
 // ── Placeholder view ───────────────────────────────────────────────────────
 function PlaceholderView({ title, sub }: { title: string; sub?: string }) {
@@ -20,11 +24,32 @@ function PlaceholderView({ title, sub }: { title: string; sub?: string }) {
   );
 }
 
+// ── Root ───────────────────────────────────────────────────────────────────
 export default function App() {
+  const { user, register, login, logout } = useAuth();
+  const [authScreen, setAuthScreen] = useState<'login' | 'register'>('login');
   const [activeView, setActiveView] = useState<View>('today');
   const form = useReviewForm();
 
-  // Pre-populate form from the My Day queue and navigate to workspace
+  // ── Auth gate ────────────────────────────────────────────────────────────
+  if (!user) {
+    if (authScreen === 'register') {
+      return (
+        <RegisterView
+          onRegister={register}
+          onGoLogin={() => setAuthScreen('login')}
+        />
+      );
+    }
+    return (
+      <LoginView
+        onLogin={login}
+        onGoRegister={() => setAuthScreen('register')}
+      />
+    );
+  }
+
+  // ── Authenticated app ─────────────────────────────────────────────────────
   function startReview(learnerName: string, labName: string, attempt: string) {
     if (learnerName) form.handleLearnerSelect(learnerName);
     if (labName)     form.setSelectedLab(labName);
@@ -37,13 +62,14 @@ export default function App() {
       <Sidebar
         activeView={activeView}
         setView={setActiveView}
-        reviewerName={form.reviewerName}
+        user={user}
+        onLogout={logout}
       />
 
       <main style={{ flex: 1, minWidth: 0, height: '100vh', overflowY: 'auto' }}>
 
         {activeView === 'today' && (
-          <MyDayView onStartReview={startReview} />
+          <MyDayView firstName={user.firstName} onStartReview={startReview} />
         )}
 
         {activeView === 'dashboard' && (
@@ -58,10 +84,7 @@ export default function App() {
         )}
 
         {activeView === 'rubrics' && (
-          <PlaceholderView
-            title="Rubrics"
-            sub="Detailed scoring criteria for each lab module will appear here."
-          />
+          <RubricsView />
         )}
 
         {activeView === 'report' && (
@@ -99,7 +122,6 @@ export default function App() {
         {activeView === 'profile' && (
           <LearnersView />
         )}
-
 
       </main>
     </div>

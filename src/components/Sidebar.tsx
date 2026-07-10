@@ -1,11 +1,13 @@
 import { getInitials } from '../data/learnerColors';
+import type { AuthUser } from '../auth/useAuth';
 
 export type View = 'today' | 'dashboard' | 'workspace' | 'rubrics' | 'report' | 'profile';
 
 interface Props {
   activeView: View;
   setView: (v: View) => void;
-  reviewerName: string;
+  user: AuthUser;
+  onLogout: () => void;
 }
 
 // ── SVG nav icons ─────────────────────────────────────────────────────────
@@ -73,8 +75,8 @@ const NAV_ITEMS: Array<{ id: View; label: string; icon: React.ReactElement }> = 
   { id: 'profile',   label: 'Learners',          icon: <IconLearners /> },
 ];
 
-export default function Sidebar({ activeView, setView, reviewerName }: Props) {
-  const displayName = reviewerName || 'Yakubu Lute';
+export default function Sidebar({ activeView, setView, user, onLogout }: Props) {
+  const displayName = `${user.firstName} ${user.lastName}`;
   const initials = getInitials(displayName);
 
   return (
@@ -136,20 +138,33 @@ export default function Sidebar({ activeView, setView, reviewerName }: Props) {
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
-      {/* User profile */}
+      {/* User profile + logout */}
       <div style={{ borderTop: '1px solid var(--line2)', padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: 9, background: '#15181D', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12, flexShrink: 0 }}>
             {initials}
           </div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {displayName}
             </div>
             <div style={{ fontSize: 10.5, color: 'var(--ink3)', marginTop: 1, fontFamily: 'var(--mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              Trainer · Backend (Node.js)
+              {user.specialization}
             </div>
           </div>
+          <button
+            onClick={onLogout}
+            title="Sign out"
+            style={{ flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--ink3)', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--line2)'; (e.currentTarget as HTMLElement).style.color = 'var(--ink)'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--ink3)'; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 2H3a1 1 0 00-1 1v9a1 1 0 001 1h3"/>
+              <path d="M10 10.5l3-3-3-3"/>
+              <line x1="13" y1="7.5" x2="6" y2="7.5"/>
+            </svg>
+          </button>
         </div>
       </div>
     </aside>
