@@ -4,6 +4,7 @@ import Sidebar, { View } from './components/Sidebar';
 import MyDayView from './views/MyDayView';
 import CohortDashboardView from './views/CohortDashboardView';
 import ReviewWorkspaceView from './views/ReviewWorkspaceView';
+import LearnersView from './views/LearnersView';
 import ReportOutput from './components/ReportOutput';
 
 // ── Placeholder view ───────────────────────────────────────────────────────
@@ -96,10 +97,7 @@ export default function App() {
         )}
 
         {activeView === 'profile' && (
-          <PlaceholderView
-            title="Learners"
-            sub="Manage the cohort roster, view learner history, and track progress here."
-          />
+          <LearnersView />
         )}
 
         {activeView === 'states' && (
