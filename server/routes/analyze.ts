@@ -1,12 +1,16 @@
+import { createHash } from 'crypto';
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { LAB_DATA } from '../../shared/labs.js';
 import type { CodeFile, CriterionResult, AnalysisResult } from '../../shared/types.js';
 import { buildSystemPrompt, buildUserMessage } from '../prompts/reviewPrompt.js';
 import { callClaude } from '../services/anthropic.js';
+import { cacheGet, cacheSet } from '../redis/cache.js';
 
 const router = Router();
 
-// ── Grade helpers (mirrors src/data/scoring.ts) ──────────────────────────────
+const ANALYZE_CACHE_TTL = 60 * 60; // 1 hour
+
+// ── Grade helpers (mirrors src/data/scoring.ts) ───────────────────────────────
 
 function computeTotal(criteria: CriterionResult[], attempt: string): number {
   const scale = attempt === '2nd' ? 0.8 : 1;
@@ -24,7 +28,7 @@ function gradeLabel(totalScore: number, attempt: string): AnalysisResult['grade'
   return 'Needs Work';
 }
 
-// ── Request body ─────────────────────────────────────────────────────────────
+// ── Request body ──────────────────────────────────────────────────────────────
 
 interface AnalyzeBody {
   learnerName?: string;
@@ -55,7 +59,8 @@ router.post('/analyze', async (req: Request<object, object, AnalyzeBody>, res: R
       return;
     }
 
-    const { learnerName, labTitle, attempt, reviewerNotes, codeFiles, reviewerName } = req.body as Required<Pick<AnalyzeBody, 'learnerName' | 'labTitle' | 'attempt' | 'reviewerName'>> & AnalyzeBody;
+    const { learnerName, labTitle, attempt, reviewerNotes, codeFiles, reviewerName } =
+      req.body as Required<Pick<AnalyzeBody, 'learnerName' | 'labTitle' | 'attempt' | 'reviewerName'>> & AnalyzeBody;
 
     if (codeFiles !== undefined) {
       if (!Array.isArray(codeFiles)) {
@@ -68,6 +73,17 @@ router.post('/analyze', async (req: Request<object, object, AnalyzeBody>, res: R
           return;
         }
       }
+    }
+
+    // Cache key based on stable inputs that determine the AI result
+    const cachePayload = JSON.stringify({ learnerName, labTitle, attempt, reviewerNotes, codeFiles });
+    const cacheKey = `analyze:${createHash('sha256').update(cachePayload).digest('hex')}`;
+
+    const cached = await cacheGet<AnalysisResult>(cacheKey);
+    if (cached) {
+      res.setHeader('X-Cache', 'HIT');
+      res.json(cached);
+      return;
     }
 
     const firstName = learnerName.trim().split(/\s+/)[0];
@@ -105,13 +121,17 @@ router.post('/analyze', async (req: Request<object, object, AnalyzeBody>, res: R
     const recomputedGrade = gradeLabel(recomputedTotal, attempt);
     const recomputedPassed = recomputedTotal >= 80;
 
-    res.json({
+    const result: AnalysisResult = {
       ...parsed,
       criteria: sanitizedCriteria,
       totalScore: recomputedTotal,
       grade: recomputedGrade,
       passed: recomputedPassed,
-    });
+    };
+
+    await cacheSet(cacheKey, result, ANALYZE_CACHE_TTL);
+    res.setHeader('X-Cache', 'MISS');
+    res.json(result);
   } catch (err) {
     next(err);
   }
