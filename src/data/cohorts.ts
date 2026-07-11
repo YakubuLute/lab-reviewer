@@ -1,4 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  getCohorts, createCohortApi, deleteCohortApi,
+  addLearnerApi, updateLearnerApi, removeLearnerApi,
+  addLabApi, updateLabDueApi, removeLabApi,
+} from '../lib/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -54,140 +59,126 @@ export const AVATAR_PALETTE: [string, string][] = [
   ['#FBE6E6', '#C23838'],
 ];
 
-const STORAGE_KEY = 'lablens_cohorts';
-
 // ── Hook ───────────────────────────────────────────────────────────────────
 
+const ACTIVE_KEY = (instructorId: string) => `lablens_active_cohort_${instructorId}`;
+
 export function useCohorts(instructorId: string) {
-  const [cohorts, setCohorts] = useState<Cohort[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      const all: Cohort[] = JSON.parse(raw);
-      return all.filter((c) => c.instructorId === instructorId);
-    } catch {
-      return [];
-    }
-  });
+  const isGuest = instructorId === '__guest__';
 
-  const [currentCohortId, setCurrentCohortId] = useState<string | null>(() => {
-    const key = `lablens_active_cohort_${instructorId}`;
-    return localStorage.getItem(key);
-  });
+  const [cohorts, setCohorts] = useState<Cohort[]>([]);
+  const [isLoading, setIsLoading] = useState(!isGuest);
 
-  // Persist to localStorage whenever cohorts change
+  const [currentCohortId, setCurrentCohortId] = useState<string | null>(() =>
+    isGuest ? null : localStorage.getItem(ACTIVE_KEY(instructorId))
+  );
+
+  // Persist active cohort selection to localStorage (UI preference only)
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const all: Cohort[] = raw ? JSON.parse(raw) : [];
-      // Replace instructor's cohorts in the global store
-      const others = all.filter((c) => c.instructorId !== instructorId);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...others, ...cohorts]));
-    } catch {
-      // ignore
-    }
-  }, [cohorts, instructorId]);
-
-  // Persist active cohort selection
-  useEffect(() => {
-    const key = `lablens_active_cohort_${instructorId}`;
+    if (isGuest) return;
+    const key = ACTIVE_KEY(instructorId);
     if (currentCohortId) localStorage.setItem(key, currentCohortId);
     else localStorage.removeItem(key);
-  }, [currentCohortId, instructorId]);
+  }, [currentCohortId, instructorId, isGuest]);
 
-  const currentCohort = cohorts.find((c) => c.id === currentCohortId) ?? cohorts[0] ?? null;
+  // Load cohorts from API on mount
+  useEffect(() => {
+    if (isGuest) return;
+    let cancelled = false;
+    setIsLoading(true);
+    getCohorts()
+      .then((data) => {
+        if (cancelled) return;
+        setCohorts(data);
+        // If stored active cohort no longer exists, default to first
+        if (currentCohortId && !data.find(c => c.id === currentCohortId)) {
+          setCurrentCohortId(data[0]?.id ?? null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) console.error('[cohorts] load failed:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instructorId]);
+
+  const currentCohort = cohorts.find(c => c.id === currentCohortId) ?? cohorts[0] ?? null;
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
-  function createCohort(name: string, track: string): Cohort {
-    const cohort: Cohort = {
-      id: 'c' + Date.now(),
-      name,
-      track,
-      instructorId,
-      learners: [],
-      labs: [],
-      createdAt: new Date().toISOString(),
-    };
-    setCohorts((prev) => [...prev, cohort]);
+  const createCohort = useCallback(async (name: string, track: string): Promise<void> => {
+    const cohort = await createCohortApi(name, track);
+    setCohorts(prev => [...prev, cohort]);
     setCurrentCohortId(cohort.id);
-    return cohort;
-  }
+  }, []);
 
-  function updateCohort(id: string, fn: (c: Cohort) => Cohort) {
-    setCohorts((prev) => prev.map((c) => (c.id === id ? fn(c) : c)));
-  }
-
-  function deleteCohort(id: string) {
-    setCohorts((prev) => prev.filter((c) => c.id !== id));
-    if (currentCohortId === id) {
-      const remaining = cohorts.filter((c) => c.id !== id);
-      setCurrentCohortId(remaining[0]?.id ?? null);
-    }
-  }
+  const deleteCohort = useCallback(async (id: string): Promise<void> => {
+    await deleteCohortApi(id);
+    setCohorts(prev => prev.filter(c => c.id !== id));
+    setCurrentCohortId(prev => {
+      if (prev !== id) return prev;
+      const remaining = cohorts.filter(c => c.id !== id);
+      return remaining[0]?.id ?? null;
+    });
+  }, [cohorts]);
 
   // ── Learner mutations ─────────────────────────────────────────────────────
 
-  function addLearner(cohortId: string, name: string, email?: string) {
-    const palette = AVATAR_PALETTE;
-    updateCohort(cohortId, (c) => {
-      const [bg, fg] = palette[c.learners.length % palette.length] as [string, string];
-      const resolvedEmail = email?.trim() ||
-        name.toLowerCase().split(/\s+/).slice(0, 2).join('.') + '@amalitech.org';
-      const learner: CohortLearner = {
-        id: 'l' + Date.now(),
-        name,
-        email: resolvedEmail,
-        done: 0,
-        grade: 'New',
-        avg: null,
-        flagged: false,
-        bg,
-        fg,
-      };
-      return { ...c, learners: [...c.learners, learner] };
-    });
-  }
+  const addLearner = useCallback(async (cohortId: string, name: string, email?: string): Promise<void> => {
+    const currentLearnerCount = cohorts.find(c => c.id === cohortId)?.learners.length ?? 0;
+    const learner = await addLearnerApi(cohortId, name, email, currentLearnerCount);
+    setCohorts(prev => prev.map(c =>
+      c.id === cohortId ? { ...c, learners: [...c.learners, learner] } : c
+    ));
+  }, [cohorts]);
 
-  function removeLearner(cohortId: string, learnerId: string) {
-    updateCohort(cohortId, (c) => ({
-      ...c,
-      learners: c.learners.filter((l) => l.id !== learnerId),
-    }));
-  }
+  const removeLearner = useCallback(async (cohortId: string, learnerId: string): Promise<void> => {
+    await removeLearnerApi(cohortId, learnerId);
+    setCohorts(prev => prev.map(c =>
+      c.id === cohortId ? { ...c, learners: c.learners.filter(l => l.id !== learnerId) } : c
+    ));
+  }, []);
 
-  function updateLearner(cohortId: string, learnerId: string, patch: Partial<CohortLearner>) {
-    updateCohort(cohortId, (c) => ({
-      ...c,
-      learners: c.learners.map((l) => (l.id === learnerId ? { ...l, ...patch } : l)),
-    }));
-  }
+  const updateLearner = useCallback(async (cohortId: string, learnerId: string, patch: Partial<CohortLearner>): Promise<void> => {
+    const updated = await updateLearnerApi(cohortId, learnerId, patch);
+    setCohorts(prev => prev.map(c =>
+      c.id === cohortId
+        ? { ...c, learners: c.learners.map(l => l.id === learnerId ? { ...l, ...updated } : l) }
+        : c
+    ));
+  }, []);
 
   // ── Lab mutations ─────────────────────────────────────────────────────────
 
-  function addLab(cohortId: string, name: string, due: string) {
-    updateCohort(cohortId, (c) => ({
-      ...c,
-      labs: [...c.labs, { id: 'lab' + Date.now(), name, due }],
-    }));
-  }
+  const addLab = useCallback(async (cohortId: string, name: string, due: string): Promise<void> => {
+    const lab = await addLabApi(cohortId, name, due);
+    setCohorts(prev => prev.map(c =>
+      c.id === cohortId ? { ...c, labs: [...c.labs, lab] } : c
+    ));
+  }, []);
 
-  function updateLabDue(cohortId: string, labId: string, due: string) {
-    updateCohort(cohortId, (c) => ({
-      ...c,
-      labs: c.labs.map((l) => (l.id === labId ? { ...l, due } : l)),
-    }));
-  }
+  const updateLabDue = useCallback(async (cohortId: string, labId: string, due: string): Promise<void> => {
+    const updated = await updateLabDueApi(cohortId, labId, due);
+    setCohorts(prev => prev.map(c =>
+      c.id === cohortId
+        ? { ...c, labs: c.labs.map(l => l.id === labId ? { ...l, ...updated } : l) }
+        : c
+    ));
+  }, []);
 
-  function removeLab(cohortId: string, labId: string) {
-    updateCohort(cohortId, (c) => ({
-      ...c,
-      labs: c.labs.filter((l) => l.id !== labId),
-    }));
-  }
+  const removeLab = useCallback(async (cohortId: string, labId: string): Promise<void> => {
+    await removeLabApi(cohortId, labId);
+    setCohorts(prev => prev.map(c =>
+      c.id === cohortId ? { ...c, labs: c.labs.filter(l => l.id !== labId) } : c
+    ));
+  }, []);
 
   return {
     cohorts,
+    isLoading,
     currentCohort,
     currentCohortId,
     setCurrentCohortId,

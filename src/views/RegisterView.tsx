@@ -5,7 +5,7 @@ interface Props {
   onRegister: (
     firstName: string, lastName: string, email: string,
     role: TrainerRole, password: string,
-  ) => { ok: boolean; error?: string };
+  ) => Promise<{ ok: boolean; error?: string }>;
   onGoLogin: () => void;
 }
 
@@ -49,15 +49,13 @@ export default function RegisterView({ onRegister, onGoLogin }: Props) {
     return Object.keys(errs).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     if (!validate()) return;
     setLoading(true);
-    setTimeout(() => {
-      const result = onRegister(firstName, lastName, email, role as TrainerRole, password);
-      if (!result.ok) { setError(result.error ?? 'Registration failed.'); setLoading(false); }
-    }, 380);
+    const result = await onRegister(firstName, lastName, email, role as TrainerRole, password);
+    if (!result.ok) { setError(result.error ?? 'Registration failed.'); setLoading(false); }
   }
 
   return (

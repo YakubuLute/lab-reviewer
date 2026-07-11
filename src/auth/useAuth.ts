@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { authRegister, authLogin, authMe, setToken, clearToken, getToken } from '../lib/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -36,86 +37,97 @@ export const ROLE_SPECIALIZATION: Record<TrainerRole, string> = {
   'QA Trainer':       'QA & Testing',
 };
 
-// ── Storage helpers ────────────────────────────────────────────────────────
+// ── Token helpers ──────────────────────────────────────────────────────────
 
-const USERS_KEY   = 'lablens_users';
-const CREDS_KEY   = 'lablens_creds';
-const SESSION_KEY = 'lablens_session';
+const USER_KEY = 'lablens_user';
 
-function loadUsers(): AuthUser[] {
-  try { return JSON.parse(localStorage.getItem(USERS_KEY) ?? '[]'); } catch { return []; }
-}
-function saveUsers(u: AuthUser[]) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
-
-function loadCreds(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(CREDS_KEY) ?? '{}'); } catch { return {}; }
-}
-function saveCreds(c: Record<string, string>) { localStorage.setItem(CREDS_KEY, JSON.stringify(c)); }
-
-function loadSession(): AuthUser | null {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null'); } catch { return null; }
+function loadCachedUser(): AuthUser | null {
+  try { return JSON.parse(localStorage.getItem(USER_KEY) ?? 'null'); } catch { return null; }
 }
 
-// Prototype-only credential encoding.
-// This will be replaced by Amalitech SSO — do NOT use in production.
-function encodeCred(email: string, password: string): string {
-  return btoa(encodeURIComponent(email.toLowerCase() + '\x00' + password));
+function saveUserCache(u: AuthUser) {
+  localStorage.setItem(USER_KEY, JSON.stringify(u));
+}
+
+function clearUserCache() {
+  localStorage.removeItem(USER_KEY);
+}
+
+// Decode JWT payload without verifying (client-side check for expiry only)
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]!));
+    return typeof payload.exp === 'number' && payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
 
 export function useAuth() {
-  const [user, setUser] = useState<AuthUser | null>(loadSession);
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    const token = getToken();
+    if (!token || isTokenExpired(token)) {
+      clearToken();
+      clearUserCache();
+      return null;
+    }
+    return loadCachedUser();
+  });
 
-  const register = useCallback((
+  // Verify token with server on mount (catches revoked / rotated keys)
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    authMe()
+      .then((freshUser) => {
+        saveUserCache(freshUser);
+        setUser(freshUser);
+      })
+      .catch(() => {
+        clearToken();
+        clearUserCache();
+        setUser(null);
+      });
+  }, []);
+
+  const register = useCallback(async (
     firstName: string,
     lastName: string,
     email: string,
     role: TrainerRole,
     password: string,
-  ): { ok: boolean; error?: string } => {
-    const users = loadUsers();
-    const normalEmail = email.trim().toLowerCase();
-
-    if (users.some((u) => u.email === normalEmail)) {
-      return { ok: false, error: 'An account with this email already exists.' };
+  ): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const { token, user: newUser } = await authRegister(firstName, lastName, email, role, password);
+      setToken(token);
+      saveUserCache(newUser);
+      setUser(newUser);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
     }
-
-    const newUser: AuthUser = {
-      id: 'u' + Date.now(),
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: normalEmail,
-      role,
-      specialization: ROLE_SPECIALIZATION[role],
-    };
-
-    saveUsers([...users, newUser]);
-    saveCreds({ ...loadCreds(), [newUser.id]: encodeCred(normalEmail, password) });
-    localStorage.setItem(SESSION_KEY, JSON.stringify(newUser));
-    setUser(newUser);
-    return { ok: true };
   }, []);
 
-  const login = useCallback((
+  const login = useCallback(async (
     email: string,
     password: string,
-  ): { ok: boolean; error?: string } => {
-    const normalEmail = email.trim().toLowerCase();
-    const found = loadUsers().find((u) => u.email === normalEmail);
-    if (!found) return { ok: false, error: 'No account found with this email address.' };
-
-    if (loadCreds()[found.id] !== encodeCred(normalEmail, password)) {
-      return { ok: false, error: 'Incorrect password. Please try again.' };
+  ): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const { token, user: loggedIn } = await authLogin(email, password);
+      setToken(token);
+      saveUserCache(loggedIn);
+      setUser(loggedIn);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
     }
-
-    localStorage.setItem(SESSION_KEY, JSON.stringify(found));
-    setUser(found);
-    return { ok: true };
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(SESSION_KEY);
+    clearToken();
+    clearUserCache();
     setUser(null);
   }, []);
 

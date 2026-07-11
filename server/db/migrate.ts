@@ -1,5 +1,3 @@
-import postgres from 'postgres';
-
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -66,6 +64,15 @@ const SCHEMA_SQL = `
 export async function runMigrations(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('[db] DATABASE_URL is required');
+
+  let postgres: typeof import('postgres').default;
+  try {
+    const mod = await import('postgres');
+    postgres = mod.default;
+  } catch {
+    throw new Error('postgres package not installed. Run: npm install postgres');
+  }
+
   const sql = postgres(url, { max: 1 });
   try {
     await sql.unsafe(SCHEMA_SQL);

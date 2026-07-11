@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 interface Props {
-  onLogin: (email: string, password: string) => { ok: boolean; error?: string };
+  onLogin: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   onGoRegister: () => void;
 }
 
@@ -12,16 +12,13 @@ export default function LoginView({ onLogin, onGoRegister }: Props) {
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password) { setError('Please fill in all fields.'); return; }
     setLoading(true);
     setError('');
-    // Small delay so the loading state is perceptible
-    setTimeout(() => {
-      const result = onLogin(email, password);
-      if (!result.ok) { setError(result.error ?? 'Sign-in failed.'); setLoading(false); }
-    }, 320);
+    const result = await onLogin(email, password);
+    if (!result.ok) { setError(result.error ?? 'Sign-in failed.'); setLoading(false); }
   }
 
   return (

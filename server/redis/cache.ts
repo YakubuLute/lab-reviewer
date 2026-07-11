@@ -1,7 +1,7 @@
 import { getRedis } from './client.js';
 
 export async function cacheGet<T>(key: string): Promise<T | null> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return null;
   try {
     const raw = await redis.get(key);
@@ -12,7 +12,7 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
 }
 
 export async function cacheSet(key: string, value: unknown, ttlSeconds: number): Promise<void> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return;
   try {
     await redis.setex(key, ttlSeconds, JSON.stringify(value));
