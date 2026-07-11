@@ -1,35 +1,38 @@
-import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
-import { promisify } from 'util';
+import { scrypt, randomBytes, timingSafeEqual, type ScryptOptions } from 'crypto';
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
 import { signToken, requireAuth } from '../middleware/auth.js';
-import { getDb } from '../db/connection.js';
-import { users } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { getSql } from '../db/connection.js';
+import type { DbUser } from '../db/schema.js';
 
 const router = Router();
-const scryptAsync = promisify(scrypt);
 
-// ── Password hashing — Node.js scrypt (no bcryptjs needed) ────────────────────
+// ── Password hashing — Node.js scrypt (no bcryptjs) ───────────────────────────
 
-const KEYLEN = 64;
-const SCRYPT = { N: 16384, r: 8, p: 1 };
+const KEYLEN  = 64;
+const SCRYPT: ScryptOptions = { N: 16384, r: 8, p: 1 };
+
+function scryptAsync(pw: string, salt: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(pw, salt, KEYLEN, SCRYPT, (err, key) => { if (err) reject(err); else resolve(key); });
+  });
+}
 
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString('hex');
-  const hash = (await scryptAsync(password, salt, KEYLEN, SCRYPT)) as Buffer;
+  const hash = await scryptAsync(password, salt);
   return `${salt}:${hash.toString('hex')}`;
 }
 
 async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [salt, hashHex] = stored.split(':');
   if (!salt || !hashHex) return false;
-  const hash       = (await scryptAsync(password, salt, KEYLEN, SCRYPT)) as Buffer;
+  const hash       = await scryptAsync(password, salt);
   const storedHash = Buffer.from(hashHex, 'hex');
   return hash.length === storedHash.length && timingSafeEqual(hash, storedHash);
 }
 
-// ── Validation schemas ────────────────────────────────────────────────────────
+// ── Validation ────────────────────────────────────────────────────────────────
 
 const VALID_ROLES = [
   'Backend Trainer', 'Frontend Trainer', 'DevOps Trainer', 'UI/UX Trainer', 'QA Trainer',
@@ -56,6 +59,13 @@ const LoginSchema = z.object({
   password: z.string().min(1),
 });
 
+function safeUser(u: DbUser) {
+  return {
+    id: u.id, firstName: u.firstName, lastName: u.lastName,
+    email: u.email, role: u.role, specialization: u.specialization,
+  };
+}
+
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 
 router.post('/auth/register', async (req: Request, res: Response, next: NextFunction) => {
@@ -66,26 +76,31 @@ router.post('/auth/register', async (req: Request, res: Response, next: NextFunc
       return;
     }
     const { firstName, lastName, email, role, password } = parsed.data;
-    const db = await getDb();
+    const specialization = ROLE_SPECIALIZATION[role] ?? role;
+    const sql = await getSql();
 
-    const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+    const existing = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
     if (existing.length > 0) {
       res.status(409).json({ error: 'An account with this email already exists.' });
       return;
     }
 
-    const passwordHash  = await hashPassword(password);
-    const specialization = ROLE_SPECIALIZATION[role] ?? role;
-    const [user] = await db
-      .insert(users)
-      .values({ firstName, lastName, email, role, specialization, passwordHash })
-      .returning({
-        id: users.id, firstName: users.firstName, lastName: users.lastName,
-        email: users.email, role: users.role, specialization: users.specialization,
-      });
+    const passwordHash = await hashPassword(password);
+    const [user]: DbUser[] = await sql`
+      INSERT INTO users (first_name, last_name, email, role, specialization, password_hash)
+      VALUES (${firstName}, ${lastName}, ${email}, ${role}, ${specialization}, ${passwordHash})
+      RETURNING
+        id,
+        first_name      AS "firstName",
+        last_name       AS "lastName",
+        email,
+        role,
+        specialization,
+        password_hash   AS "passwordHash"
+    `;
 
     const token = signToken({ userId: user.id, email: user.email, role: user.role });
-    res.status(201).json({ token, user });
+    res.status(201).json({ token, user: safeUser(user) });
   } catch (err) {
     next(err);
   }
@@ -101,28 +116,25 @@ router.post('/auth/login', async (req: Request, res: Response, next: NextFunctio
       return;
     }
     const { email, password } = parsed.data;
-    const db = await getDb();
+    const sql = await getSql();
 
-    const rows = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    if (rows.length === 0) {
+    const [user]: DbUser[] = await sql`
+      SELECT id, first_name AS "firstName", last_name AS "lastName",
+             email, role, specialization, password_hash AS "passwordHash"
+      FROM users WHERE email = ${email} LIMIT 1
+    `;
+
+    if (!user) {
       res.status(401).json({ error: 'No account found with this email address.' });
       return;
     }
-
-    const user = rows[0];
     if (!(await verifyPassword(password, user.passwordHash))) {
       res.status(401).json({ error: 'Incorrect password. Please try again.' });
       return;
     }
 
     const token = signToken({ userId: user.id, email: user.email, role: user.role });
-    res.json({
-      token,
-      user: {
-        id: user.id, firstName: user.firstName, lastName: user.lastName,
-        email: user.email, role: user.role, specialization: user.specialization,
-      },
-    });
+    res.json({ token, user: safeUser(user) });
   } catch (err) {
     next(err);
   }
@@ -132,17 +144,14 @@ router.post('/auth/login', async (req: Request, res: Response, next: NextFunctio
 
 router.get('/auth/me', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const db   = await getDb();
-    const rows = await db.select().from(users).where(eq(users.id, req.jwtUser!.userId)).limit(1);
-    if (rows.length === 0) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-    const u = rows[0];
-    res.json({
-      id: u.id, firstName: u.firstName, lastName: u.lastName,
-      email: u.email, role: u.role, specialization: u.specialization,
-    });
+    const sql = await getSql();
+    const [user]: DbUser[] = await sql`
+      SELECT id, first_name AS "firstName", last_name AS "lastName",
+             email, role, specialization
+      FROM users WHERE id = ${req.jwtUser!.userId} LIMIT 1
+    `;
+    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+    res.json(safeUser(user));
   } catch (err) {
     next(err);
   }

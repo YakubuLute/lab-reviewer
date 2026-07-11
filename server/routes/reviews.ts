@@ -1,12 +1,10 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
-import { eq, desc } from 'drizzle-orm';
-import { db } from '../db/connection.js';
-import { reviews } from '../db/schema.js';
+import { getSql } from '../db/connection.js';
 import { requireAuth } from '../middleware/auth.js';
+import type { DbReview } from '../db/schema.js';
 
 const router = Router();
-
 router.use(requireAuth);
 
 // ── POST /api/reviews ─────────────────────────────────────────────────────────
@@ -36,38 +34,60 @@ router.post('/reviews', async (req: Request, res: Response, next: NextFunction) 
       return;
     }
 
-    const { emailSentAt, criteria, ...rest } = parsed.data;
-    const [review] = await db
-      .insert(reviews)
-      .values({
-        reviewerId: req.jwtUser!.userId,
-        ...rest,
-        criteria: criteria ?? null,
-        emailSentAt: emailSentAt ? new Date(emailSentAt) : null,
-      })
-      .returning();
+    const {
+      learnerName, learnerEmail, labTitle, attempt, totalScore, grade, passed,
+      criteria, strengths, gaps, otherRemarks, redoFlag, plagiarismConcern, emailSentAt,
+    } = parsed.data;
+
+    const sql = await getSql();
+    const [review]: DbReview[] = await sql`
+      INSERT INTO reviews (
+        reviewer_id, learner_name, learner_email, lab_title, attempt,
+        total_score, grade, passed, criteria, strengths, gaps, other_remarks,
+        redo_flag, plagiarism_concern, email_sent_at
+      ) VALUES (
+        ${req.jwtUser!.userId}, ${learnerName}, ${learnerEmail}, ${labTitle}, ${attempt},
+        ${totalScore ?? null}, ${grade ?? null}, ${passed ?? null},
+        ${criteria ? JSON.stringify(criteria) : null},
+        ${strengths ?? null}, ${gaps ?? null}, ${otherRemarks ?? null},
+        ${redoFlag}, ${plagiarismConcern},
+        ${emailSentAt ? new Date(emailSentAt) : null}
+      )
+      RETURNING
+        id, reviewer_id AS "reviewerId",
+        learner_name AS "learnerName", learner_email AS "learnerEmail",
+        lab_title AS "labTitle", attempt,
+        total_score AS "totalScore", grade, passed, criteria,
+        strengths, gaps, other_remarks AS "otherRemarks",
+        redo_flag AS "redoFlag", plagiarism_concern AS "plagiarismConcern",
+        email_sent_at AS "emailSentAt", created_at AS "createdAt"
+    `;
 
     res.status(201).json(review);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // ── GET /api/reviews ──────────────────────────────────────────────────────────
 
 router.get('/reviews', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const rows = await db
-      .select()
-      .from(reviews)
-      .where(eq(reviews.reviewerId, req.jwtUser!.userId))
-      .orderBy(desc(reviews.createdAt))
-      .limit(100);
-
+    const sql  = await getSql();
+    const rows: DbReview[] = await sql`
+      SELECT
+        id, reviewer_id AS "reviewerId",
+        learner_name AS "learnerName", learner_email AS "learnerEmail",
+        lab_title AS "labTitle", attempt,
+        total_score AS "totalScore", grade, passed, criteria,
+        strengths, gaps, other_remarks AS "otherRemarks",
+        redo_flag AS "redoFlag", plagiarism_concern AS "plagiarismConcern",
+        email_sent_at AS "emailSentAt", created_at AS "createdAt"
+      FROM reviews
+      WHERE reviewer_id = ${req.jwtUser!.userId}
+      ORDER BY created_at DESC
+      LIMIT 100
+    `;
     res.json(rows);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 export default router;

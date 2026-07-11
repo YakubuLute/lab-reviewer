@@ -9,7 +9,8 @@
     "noEmit": true,
     "strict": true,
     "skipLibCheck": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "typeRoots": ["./server/types", "./node_modules/@types"]
   },
   "include": ["server", "shared"]
 }

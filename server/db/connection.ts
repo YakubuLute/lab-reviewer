@@ -1,52 +1,35 @@
-// Dynamic import so the server starts even if drizzle-orm/postgres aren't installed.
-// DB features return 503 until `npm install drizzle-orm postgres` is run.
+// Dynamic loader for the `postgres` package.
+// The server starts and serves non-DB routes even if the package isn't installed.
+// Install with: npm install postgres
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _db: any = null;
-let _initError: Error | null = null;
-let _initializing = false;
+let _sql: any = null;
+let _error: Error | null = null;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function getDb(): Promise<any> {
-  if (_db) return _db;
-  if (_initError) throw _initError;
-  if (_initializing) {
-    // Busy-wait a bit for concurrent callers
-    await new Promise(r => setTimeout(r, 50));
-    if (_db) return _db;
-    if (_initError) throw _initError;
-  }
-
-  _initializing = true;
+export async function getSql(): Promise<any> {
+  if (_sql)    return _sql;
+  if (_error)  throw _error;
 
   const url = process.env.DATABASE_URL;
   if (!url) {
-    _initError = Object.assign(
-      new Error('DATABASE_URL is not configured. Set it in server/.env'),
+    _error = Object.assign(
+      new Error('DATABASE_URL is not configured — set it in server/.env'),
       { status: 503 }
     );
-    throw _initError;
+    throw _error;
   }
 
   try {
-    const [drizzleMod, postgresMod, schemaMod] = await Promise.all([
-      import('drizzle-orm/postgres-js'),
-      import('postgres'),
-      import('./schema.js'),
-    ]);
-    _db = drizzleMod.drizzle(postgresMod.default(url), { schema: schemaMod });
+    const { default: postgres } = await import('postgres');
+    _sql = postgres(url);
     console.log('[db] connected');
-    return _db;
-  } catch (err) {
-    _initError = Object.assign(
-      new Error(
-        'Database packages not installed. Run: npm install drizzle-orm postgres\n' +
-        String((err as Error).message)
-      ),
+    return _sql;
+  } catch {
+    _error = Object.assign(
+      new Error('Database driver missing. Run: npm install postgres'),
       { status: 503 }
     );
-    throw _initError;
-  } finally {
-    _initializing = false;
+    throw _error;
   }
 }

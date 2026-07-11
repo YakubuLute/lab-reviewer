@@ -1,13 +1,10 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
-import { eq, inArray, asc } from 'drizzle-orm';
-import { db } from '../db/connection.js';
-import { cohorts, cohortLearners, cohortLabs } from '../db/schema.js';
+import { getSql } from '../db/connection.js';
 import { requireAuth } from '../middleware/auth.js';
+import type { DbCohort, DbCohortLearner, DbCohortLab } from '../db/schema.js';
 
 const router = Router();
-
-// All cohort routes require authentication
 router.use(requireAuth);
 
 const AVATAR_PALETTE: [string, string][] = [
@@ -20,61 +17,48 @@ const AVATAR_PALETTE: [string, string][] = [
   ['#FBE6E6', '#C23838'],
 ];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function buildCohortResponse(cohortId: string) {
-  const [cohort, learners, labs] = await Promise.all([
-    db.select().from(cohorts).where(eq(cohorts.id, cohortId)).limit(1),
-    db.select().from(cohortLearners).where(eq(cohortLearners.cohortId, cohortId)).orderBy(asc(cohortLearners.createdAt)),
-    db.select().from(cohortLabs).where(eq(cohortLabs.cohortId, cohortId)).orderBy(asc(cohortLabs.createdAt)),
-  ]);
-  if (!cohort[0]) return null;
-  return {
-    ...cohort[0],
-    instructorId: cohort[0].instructorId,
-    createdAt: cohort[0].createdAt?.toISOString() ?? new Date().toISOString(),
-    learners: learners.map(l => ({ ...l, createdAt: undefined })),
-    labs: labs.map(l => ({ ...l, due: l.due ?? '', createdAt: undefined })),
-  };
-}
-
 // ── GET /api/cohorts ──────────────────────────────────────────────────────────
 
 router.get('/cohorts', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const sql    = await getSql();
     const userId = req.jwtUser!.userId;
-    const userCohorts = await db
-      .select()
-      .from(cohorts)
-      .where(eq(cohorts.instructorId, userId))
-      .orderBy(asc(cohorts.createdAt));
 
-    if (userCohorts.length === 0) {
-      res.json([]);
-      return;
-    }
+    const userCohorts: DbCohort[] = await sql`
+      SELECT id, instructor_id AS "instructorId", name, track, created_at AS "createdAt"
+      FROM cohorts WHERE instructor_id = ${userId} ORDER BY created_at ASC
+    `;
 
-    const cohortIds = userCohorts.map(c => c.id);
-    const [allLearners, allLabs] = await Promise.all([
-      db.select().from(cohortLearners).where(inArray(cohortLearners.cohortId, cohortIds)).orderBy(asc(cohortLearners.createdAt)),
-      db.select().from(cohortLabs).where(inArray(cohortLabs.cohortId, cohortIds)).orderBy(asc(cohortLabs.createdAt)),
+    if (userCohorts.length === 0) { res.json([]); return; }
+
+    // Fetch learners and labs for all cohorts in two queries (via JOIN)
+    const [allLearners, allLabs]: [DbCohortLearner[], DbCohortLab[]] = await Promise.all([
+      sql`
+        SELECT cl.id, cl.cohort_id AS "cohortId", cl.name, cl.email,
+               cl.done, cl.grade, cl.avg, cl.flagged, cl.bg, cl.fg
+        FROM cohort_learners cl
+        INNER JOIN cohorts c ON cl.cohort_id = c.id
+        WHERE c.instructor_id = ${userId}
+        ORDER BY cl.created_at ASC
+      `,
+      sql`
+        SELECT cl.id, cl.cohort_id AS "cohortId", cl.name, cl.due
+        FROM cohort_labs cl
+        INNER JOIN cohorts c ON cl.cohort_id = c.id
+        WHERE c.instructor_id = ${userId}
+        ORDER BY cl.created_at ASC
+      `,
     ]);
 
-    const result = userCohorts.map(c => ({
-      ...c,
-      createdAt: c.createdAt?.toISOString() ?? new Date().toISOString(),
-      learners: allLearners
-        .filter(l => l.cohortId === c.id)
-        .map(l => ({ ...l, createdAt: undefined })),
-      labs: allLabs
-        .filter(l => l.cohortId === c.id)
-        .map(l => ({ ...l, due: l.due ?? '', createdAt: undefined })),
+    const result = userCohorts.map((c) => ({
+      id: c.id, name: c.name, track: c.track, instructorId: c.instructorId,
+      createdAt: (c.createdAt as Date).toISOString(),
+      learners: allLearners.filter((l) => l.cohortId === c.id),
+      labs: allLabs.filter((l) => l.cohortId === c.id).map((l) => ({ ...l, due: l.due ?? '' })),
     }));
 
     res.json(result);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // ── POST /api/cohorts ─────────────────────────────────────────────────────────
@@ -87,81 +71,73 @@ const CreateCohortSchema = z.object({
 router.post('/cohorts', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = CreateCohortSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
-      return;
-    }
-    const [cohort] = await db
-      .insert(cohorts)
-      .values({ instructorId: req.jwtUser!.userId, ...parsed.data })
-      .returning();
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
+
+    const sql = await getSql();
+    const [cohort]: DbCohort[] = await sql`
+      INSERT INTO cohorts (instructor_id, name, track)
+      VALUES (${req.jwtUser!.userId}, ${parsed.data.name}, ${parsed.data.track})
+      RETURNING id, instructor_id AS "instructorId", name, track, created_at AS "createdAt"
+    `;
 
     res.status(201).json({
-      ...cohort,
-      createdAt: cohort.createdAt?.toISOString() ?? new Date().toISOString(),
-      learners: [],
-      labs: [],
+      id: cohort.id, name: cohort.name, track: cohort.track,
+      instructorId: cohort.instructorId,
+      createdAt: (cohort.createdAt as Date).toISOString(),
+      learners: [], labs: [],
     });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // ── DELETE /api/cohorts/:id ───────────────────────────────────────────────────
 
 router.delete('/cohorts/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.jwtUser!.userId;
-    const row = await db.select({ instructorId: cohorts.instructorId }).from(cohorts).where(eq(cohorts.id, req.params.id)).limit(1);
-    if (!row[0] || row[0].instructorId !== userId) {
-      res.status(404).json({ error: 'Cohort not found' });
-      return;
+    const sql  = await getSql();
+    const [row]: { instructorId: string }[] = await sql`
+      SELECT instructor_id AS "instructorId" FROM cohorts WHERE id = ${req.params.id} LIMIT 1
+    `;
+    if (!row || row.instructorId !== req.jwtUser!.userId) {
+      res.status(404).json({ error: 'Cohort not found' }); return;
     }
-    await db.delete(cohorts).where(eq(cohorts.id, req.params.id));
+    await sql`DELETE FROM cohorts WHERE id = ${req.params.id}`;
     res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // ── POST /api/cohorts/:id/learners ────────────────────────────────────────────
 
 const AddLearnerSchema = z.object({
-  name:          z.string().min(1).max(200).trim(),
-  email:         z.string().email().optional().or(z.literal('')),
-  learnerCount:  z.number().int().min(0).default(0), // client sends current count for palette assignment
+  name:         z.string().min(1).max(200).trim(),
+  email:        z.string().email().optional().or(z.literal('')),
+  learnerCount: z.number().int().min(0).default(0),
 });
 
 router.post('/cohorts/:id/learners', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const cohort = await db.select({ instructorId: cohorts.instructorId }).from(cohorts).where(eq(cohorts.id, req.params.id)).limit(1);
-    if (!cohort[0] || cohort[0].instructorId !== req.jwtUser!.userId) {
-      res.status(404).json({ error: 'Cohort not found' });
-      return;
+    const sql     = await getSql();
+    const [owner]: { instructorId: string }[] = await sql`
+      SELECT instructor_id AS "instructorId" FROM cohorts WHERE id = ${req.params.id} LIMIT 1
+    `;
+    if (!owner || owner.instructorId !== req.jwtUser!.userId) {
+      res.status(404).json({ error: 'Cohort not found' }); return;
     }
 
     const parsed = AddLearnerSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
-      return;
-    }
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
+
     const { name, email, learnerCount } = parsed.data;
-
-    const resolvedEmail = (email && email.trim())
-      ? email.trim()
-      : name.toLowerCase().split(/\s+/).slice(0, 2).join('.') + '@amalitech.org';
-
+    const resolvedEmail = email?.trim() || name.toLowerCase().split(/\s+/).slice(0, 2).join('.') + '@amalitech.org';
     const [bg, fg] = AVATAR_PALETTE[learnerCount % AVATAR_PALETTE.length] as [string, string];
 
-    const [learner] = await db
-      .insert(cohortLearners)
-      .values({ cohortId: req.params.id, name, email: resolvedEmail, bg, fg })
-      .returning();
+    const [learner]: DbCohortLearner[] = await sql`
+      INSERT INTO cohort_learners (cohort_id, name, email, bg, fg)
+      VALUES (${req.params.id}, ${name}, ${resolvedEmail}, ${bg}, ${fg})
+      RETURNING id, cohort_id AS "cohortId", name, email, done, grade, avg, flagged, bg, fg
+    `;
 
-    res.status(201).json({ ...learner, createdAt: undefined });
-  } catch (err) {
-    next(err);
-  }
+    res.status(201).json(learner);
+  } catch (err) { next(err); }
 });
 
 // ── PATCH /api/cohorts/:id/learners/:learnerId ────────────────────────────────
@@ -177,48 +153,55 @@ const PatchLearnerSchema = z.object({
 
 router.patch('/cohorts/:id/learners/:learnerId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const cohort = await db.select({ instructorId: cohorts.instructorId }).from(cohorts).where(eq(cohorts.id, req.params.id)).limit(1);
-    if (!cohort[0] || cohort[0].instructorId !== req.jwtUser!.userId) {
-      res.status(404).json({ error: 'Cohort not found' });
-      return;
+    const sql     = await getSql();
+    const [owner]: { instructorId: string }[] = await sql`
+      SELECT instructor_id AS "instructorId" FROM cohorts WHERE id = ${req.params.id} LIMIT 1
+    `;
+    if (!owner || owner.instructorId !== req.jwtUser!.userId) {
+      res.status(404).json({ error: 'Cohort not found' }); return;
     }
 
     const parsed = PatchLearnerSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
-      return;
-    }
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
 
-    const [updated] = await db
-      .update(cohortLearners)
-      .set(parsed.data)
-      .where(eq(cohortLearners.id, req.params.learnerId))
-      .returning();
+    const patch = parsed.data;
+    // Build SET clause dynamically from provided fields
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    if (patch.name    !== undefined) { sets.push(`name = $${sets.length + 1}`);    vals.push(patch.name); }
+    if (patch.email   !== undefined) { sets.push(`email = $${sets.length + 1}`);   vals.push(patch.email); }
+    if (patch.done    !== undefined) { sets.push(`done = $${sets.length + 1}`);    vals.push(patch.done); }
+    if (patch.grade   !== undefined) { sets.push(`grade = $${sets.length + 1}`);   vals.push(patch.grade); }
+    if (patch.avg     !== undefined) { sets.push(`avg = $${sets.length + 1}`);     vals.push(patch.avg); }
+    if (patch.flagged !== undefined) { sets.push(`flagged = $${sets.length + 1}`); vals.push(patch.flagged); }
 
-    if (!updated) {
-      res.status(404).json({ error: 'Learner not found' });
-      return;
-    }
-    res.json({ ...updated, createdAt: undefined });
-  } catch (err) {
-    next(err);
-  }
+    if (sets.length === 0) { res.status(400).json({ error: 'No fields to update' }); return; }
+
+    vals.push(req.params.learnerId);
+    const [updated]: DbCohortLearner[] = await sql.unsafe(
+      `UPDATE cohort_learners SET ${sets.join(', ')} WHERE id = $${vals.length}
+       RETURNING id, cohort_id AS "cohortId", name, email, done, grade, avg, flagged, bg, fg`,
+      vals,
+    );
+    if (!updated) { res.status(404).json({ error: 'Learner not found' }); return; }
+    res.json(updated);
+  } catch (err) { next(err); }
 });
 
 // ── DELETE /api/cohorts/:id/learners/:learnerId ───────────────────────────────
 
 router.delete('/cohorts/:id/learners/:learnerId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const cohort = await db.select({ instructorId: cohorts.instructorId }).from(cohorts).where(eq(cohorts.id, req.params.id)).limit(1);
-    if (!cohort[0] || cohort[0].instructorId !== req.jwtUser!.userId) {
-      res.status(404).json({ error: 'Cohort not found' });
-      return;
+    const sql     = await getSql();
+    const [owner]: { instructorId: string }[] = await sql`
+      SELECT instructor_id AS "instructorId" FROM cohorts WHERE id = ${req.params.id} LIMIT 1
+    `;
+    if (!owner || owner.instructorId !== req.jwtUser!.userId) {
+      res.status(404).json({ error: 'Cohort not found' }); return;
     }
-    await db.delete(cohortLearners).where(eq(cohortLearners.id, req.params.learnerId));
+    await sql`DELETE FROM cohort_learners WHERE id = ${req.params.learnerId}`;
     res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // ── POST /api/cohorts/:id/labs ────────────────────────────────────────────────
@@ -230,70 +213,64 @@ const AddLabSchema = z.object({
 
 router.post('/cohorts/:id/labs', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const cohort = await db.select({ instructorId: cohorts.instructorId }).from(cohorts).where(eq(cohorts.id, req.params.id)).limit(1);
-    if (!cohort[0] || cohort[0].instructorId !== req.jwtUser!.userId) {
-      res.status(404).json({ error: 'Cohort not found' });
-      return;
+    const sql     = await getSql();
+    const [owner]: { instructorId: string }[] = await sql`
+      SELECT instructor_id AS "instructorId" FROM cohorts WHERE id = ${req.params.id} LIMIT 1
+    `;
+    if (!owner || owner.instructorId !== req.jwtUser!.userId) {
+      res.status(404).json({ error: 'Cohort not found' }); return;
     }
 
     const parsed = AddLabSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });
-      return;
-    }
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
 
-    const [lab] = await db
-      .insert(cohortLabs)
-      .values({ cohortId: req.params.id, name: parsed.data.name, due: parsed.data.due || null })
-      .returning();
+    const [lab]: DbCohortLab[] = await sql`
+      INSERT INTO cohort_labs (cohort_id, name, due)
+      VALUES (${req.params.id}, ${parsed.data.name}, ${parsed.data.due || null})
+      RETURNING id, cohort_id AS "cohortId", name, due
+    `;
 
-    res.status(201).json({ ...lab, due: lab.due ?? '', createdAt: undefined });
-  } catch (err) {
-    next(err);
-  }
+    res.status(201).json({ ...lab, due: lab.due ?? '' });
+  } catch (err) { next(err); }
 });
 
 // ── PATCH /api/cohorts/:id/labs/:labId ───────────────────────────────────────
 
 router.patch('/cohorts/:id/labs/:labId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const cohort = await db.select({ instructorId: cohorts.instructorId }).from(cohorts).where(eq(cohorts.id, req.params.id)).limit(1);
-    if (!cohort[0] || cohort[0].instructorId !== req.jwtUser!.userId) {
-      res.status(404).json({ error: 'Cohort not found' });
-      return;
+    const sql     = await getSql();
+    const [owner]: { instructorId: string }[] = await sql`
+      SELECT instructor_id AS "instructorId" FROM cohorts WHERE id = ${req.params.id} LIMIT 1
+    `;
+    if (!owner || owner.instructorId !== req.jwtUser!.userId) {
+      res.status(404).json({ error: 'Cohort not found' }); return;
     }
 
     const { due } = z.object({ due: z.string() }).parse(req.body);
-    const [updated] = await db
-      .update(cohortLabs)
-      .set({ due: due || null })
-      .where(eq(cohortLabs.id, req.params.labId))
-      .returning();
-
-    if (!updated) {
-      res.status(404).json({ error: 'Lab not found' });
-      return;
-    }
-    res.json({ ...updated, due: updated.due ?? '', createdAt: undefined });
-  } catch (err) {
-    next(err);
-  }
+    const [updated]: DbCohortLab[] = await sql`
+      UPDATE cohort_labs SET due = ${due || null}
+      WHERE id = ${req.params.labId}
+      RETURNING id, cohort_id AS "cohortId", name, due
+    `;
+    if (!updated) { res.status(404).json({ error: 'Lab not found' }); return; }
+    res.json({ ...updated, due: updated.due ?? '' });
+  } catch (err) { next(err); }
 });
 
 // ── DELETE /api/cohorts/:id/labs/:labId ──────────────────────────────────────
 
 router.delete('/cohorts/:id/labs/:labId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const cohort = await db.select({ instructorId: cohorts.instructorId }).from(cohorts).where(eq(cohorts.id, req.params.id)).limit(1);
-    if (!cohort[0] || cohort[0].instructorId !== req.jwtUser!.userId) {
-      res.status(404).json({ error: 'Cohort not found' });
-      return;
+    const sql     = await getSql();
+    const [owner]: { instructorId: string }[] = await sql`
+      SELECT instructor_id AS "instructorId" FROM cohorts WHERE id = ${req.params.id} LIMIT 1
+    `;
+    if (!owner || owner.instructorId !== req.jwtUser!.userId) {
+      res.status(404).json({ error: 'Cohort not found' }); return;
     }
-    await db.delete(cohortLabs).where(eq(cohortLabs.id, req.params.labId));
+    await sql`DELETE FROM cohort_labs WHERE id = ${req.params.labId}`;
     res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 export default router;

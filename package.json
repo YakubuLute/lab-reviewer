@@ -11,9 +11,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
-    "db:generate": "drizzle-kit generate"
+    "db:migrate": "tsx server/db/migrate.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
