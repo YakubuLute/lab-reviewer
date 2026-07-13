@@ -20,16 +20,26 @@ export async function getSql(): Promise<any> {
     throw _error;
   }
 
+  let postgres: Awaited<typeof import('postgres')>['default'];
   try {
-    const { default: postgres } = await import('postgres');
-    _sql = postgres(url);
-    console.log('[db] connected');
-    return _sql;
+    const mod = await import('postgres');
+    postgres = mod.default;
   } catch {
     _error = Object.assign(
       new Error('Database driver missing. Run: npm install postgres'),
       { status: 503 }
     );
     throw _error;
+  }
+
+  try {
+    _sql = postgres(url);
+    console.log('[db] connected');
+    return _sql;
+  } catch (err) {
+    throw Object.assign(
+      new Error(`Database connection failed: ${(err as Error).message}`),
+      { status: 503 }
+    );
   }
 }
