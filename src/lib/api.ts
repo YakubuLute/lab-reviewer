@@ -156,6 +156,6 @@ export function analyzeCode(payload: object): Promise<AnalysisResult> {
   return post<AnalysisResult>('/api/analyze', payload);
 }
 
-export function sendEmail(payload: { to: string; subject: string; html: string }): Promise<{ sent: boolean; messageId: string }> {
+export function sendEmail(payload: { to: string; cc?: string; subject: string; html: string }): Promise<{ sent: boolean; messageId: string }> {
   return post('/api/send-email', payload);
 }

@@ -1,5 +1,4 @@
 import type { Report } from '../../shared/types';
-import { EMMANUEL_EMAIL } from '../data/learners';
 import { S } from '../styles/formStyles';
 
 type SendStatus = 'idle' | 'sending' | 'done' | 'error';
@@ -9,12 +8,14 @@ interface Props {
   copied: string;
   copy: (text: string, key: string) => void;
   reset: () => void;
+  ccEmail: string;
+  onCcEmailChange: (v: string) => void;
   onSendEmail: () => void;
   sendStatus: SendStatus;
   sendError: string;
 }
 
-export default function ReportOutput({ report, copied, copy, reset, onSendEmail, sendStatus, sendError }: Props) {
+export default function ReportOutput({ report, copied, copy, reset, ccEmail, onCcEmailChange, onSendEmail, sendStatus, sendError }: Props) {
   const openInBrowser = () => {
     const blob = new Blob([report.html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -54,15 +55,21 @@ export default function ReportOutput({ report, copied, copy, reset, onSendEmail,
         <div style={{ padding: '16px 18px' }}>
           {/* To / CC */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-            {([
-              { label: 'To',  value: report.learnerEmail },
-              { label: 'CC',  value: EMMANUEL_EMAIL },
-            ] as const).map(({ label, value }) => (
-              <div key={label} style={{ padding: '8px 12px', background: 'var(--line2)', border: '1px solid var(--line)', borderRadius: 9 }}>
-                <div style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--ink3)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.07em' }}>{label}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--ink)', fontWeight: 600 }}>{value}</div>
-              </div>
-            ))}
+            <div style={{ padding: '8px 12px', background: 'var(--line2)', border: '1px solid var(--line)', borderRadius: 9 }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--ink3)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.07em' }}>To</div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink)', fontWeight: 600 }}>{report.learnerEmail}</div>
+            </div>
+            <div style={{ padding: '8px 12px', background: 'var(--line2)', border: '1px solid var(--line)', borderRadius: 9 }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--ink3)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.07em' }}>CC (optional)</div>
+              <input
+                type="email"
+                value={ccEmail}
+                onChange={(e) => onCcEmailChange(e.target.value)}
+                placeholder="colleague@company.com"
+                disabled={sendStatus === 'sending' || sendStatus === 'done'}
+                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: 12.5, color: 'var(--ink)', fontWeight: 600, fontFamily: 'var(--sans)', padding: 0 }}
+              />
+            </div>
           </div>
 
           {/* Send button */}
@@ -92,7 +99,7 @@ export default function ReportOutput({ report, copied, copy, reset, onSendEmail,
           )}
           {!sendDone && (
             <p style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 12 }}>
-              Sends to {report.learnerEmail} and CC&apos;s {EMMANUEL_EMAIL}. Review all fields above before sending.
+              Sends to {report.learnerEmail}{ccEmail.trim() ? ` and CC's ${ccEmail.trim()}` : ''}. Review all fields above before sending.
             </p>
           )}
 
@@ -181,7 +188,7 @@ export default function ReportOutput({ report, copied, copy, reset, onSendEmail,
           'Press Ctrl+C / Cmd+C to copy',
           'Open Outlook and start a new email',
           'Paste into the email body',
-          `Set To: ${report.learnerEmail} and CC: ${EMMANUEL_EMAIL}`,
+          `Set To: ${report.learnerEmail}${ccEmail.trim() ? ` and CC: ${ccEmail.trim()}` : ''}`,
           'Paste the subject line and hit Send',
         ].map((text, i) => (
           <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>

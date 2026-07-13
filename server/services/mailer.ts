@@ -18,6 +18,7 @@ function getTransport(): Transporter {
 
 interface MailOptions {
   to: string;
+  cc?: string;
   subject: string;
   html: string;
 }
@@ -27,10 +28,9 @@ interface MailResult {
   messageId: string;
 }
 
-export async function sendMail({ to, subject, html }: MailOptions): Promise<MailResult> {
+export async function sendMail({ to, cc, subject, html }: MailOptions): Promise<MailResult> {
   const fromName = process.env.MAIL_FROM_NAME ?? 'AmaliTech NSP Reviews';
   const fromAddr = process.env.MAIL_FROM_ADDRESS ?? process.env.SMTP_USER;
-  const cc = process.env.CC_EMAIL;
 
   const info = await getTransport().sendMail({ from: `"${fromName}" <${fromAddr}>`, to, cc, subject, html });
   return { sent: true, messageId: info.messageId };

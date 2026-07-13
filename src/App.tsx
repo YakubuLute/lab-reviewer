@@ -161,6 +161,8 @@ export default function App() {
                   copied={form.copied}
                   copy={form.copy}
                   reset={() => { form.reset(); setActiveView('today'); }}
+                  ccEmail={form.ccEmail}
+                  onCcEmailChange={form.setCcEmail}
                   onSendEmail={form.handleSendEmail}
                   sendStatus={form.sendStatus as 'idle' | 'sending' | 'done' | 'error'}
                   sendError={form.sendError}

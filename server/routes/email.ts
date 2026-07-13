@@ -6,13 +6,14 @@ const router = Router();
 
 interface SendEmailBody {
   to?: string;
+  cc?: string;
   subject?: string;
   html?: string;
 }
 
 router.post('/send-email', async (req: Request<object, object, SendEmailBody>, res: Response, next: NextFunction) => {
   try {
-    const { to, subject, html } = req.body;
+    const { to, cc, subject, html } = req.body;
 
     if (!to || typeof to !== 'string') { res.status(400).json({ error: '"to" is required' }); return; }
     if (!subject || typeof subject !== 'string') { res.status(400).json({ error: '"subject" is required' }); return; }
@@ -25,7 +26,8 @@ router.post('/send-email', async (req: Request<object, object, SendEmailBody>, r
       return;
     }
 
-    const result = await sendMail({ to: to.trim().toLowerCase(), subject, html });
+    const ccAddr = cc?.trim() || undefined;
+    const result = await sendMail({ to: to.trim().toLowerCase(), cc: ccAddr, subject, html });
     res.json(result);
   } catch (err) {
     const e = err as Error & { status?: number };

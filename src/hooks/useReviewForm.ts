@@ -66,6 +66,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
   const [aiEmailBody, setAiEmailBody] = useState('');
 
   // ── Email sending ─────────────────────────────────────────────────────────
+  const [ccEmail, setCcEmail] = useState('');
   const [sendStatus, setSendStatus] = useState<SendStatus>('idle');
   const [sendError, setSendError] = useState('');
 
@@ -293,7 +294,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
     setSendStatus('sending');
     setSendError('');
     try {
-      await sendEmail({ to: report.learnerEmail, subject: report.subject, html: report.html });
+      await sendEmail({ to: report.learnerEmail, cc: ccEmail.trim() || undefined, subject: report.subject, html: report.html });
       setSendStatus('done');
     } catch (err) {
       setSendError((err as Error).message);
@@ -337,6 +338,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
     handleGenerateGuide, handleRegenerateGuide,
     // AI
     analyzeStatus, analyzeError, aiSuggested,
+    ccEmail, setCcEmail,
     sendStatus, sendError,
     learners,
     lab, maxScore, totalScore, grade, passed, isValid, canAnalyze,

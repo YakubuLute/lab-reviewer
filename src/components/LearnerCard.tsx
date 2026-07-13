@@ -1,4 +1,3 @@
-import { EMMANUEL_EMAIL } from '../data/learners';
 import { S } from '../styles/formStyles';
 
 interface Props {
@@ -37,10 +36,6 @@ export default function LearnerCard({ learnerName, learnerEmail, learners, handl
               style={{ ...S.input, color: learnerEmail ? 'var(--ai-d)' : 'var(--ink3)', background: learnerEmail ? 'var(--ai-t)' : 'var(--surface)', cursor: 'default' }}
             />
           </div>
-        </div>
-        <div style={{ padding: '8px 12px', background: 'var(--line2)', border: '1px solid var(--line)', borderRadius: 9, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>CC on every email:</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)' }}>{EMMANUEL_EMAIL}</span>
         </div>
       </div>
     </div>
