@@ -52,10 +52,9 @@ export default function App() {
   const [authScreen, setAuthScreen] = useState<'login' | 'register'>('login');
   const [activeView, setActiveView] = useState<View>('today');
   const [createCohortOpen, setCreateCohortOpen] = useState(false);
-  const form = useReviewForm();
-
   // cohorts is always called but only used when user is present
   const cohortsCtx = useCohorts(user?.id ?? '__guest__');
+  const form = useReviewForm(cohortsCtx.currentCohort?.learners ?? []);
 
   // ── Auth gate ────────────────────────────────────────────────────────────
   if (!user) {

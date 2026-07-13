@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import type { CodeFile, GradeInfo, Report } from '../../shared/types';
-import { LEARNERS } from '../data/learners';
 import { LAB_DATA } from '../data/labs';
 import { RATING_LABELS, PASSING_SCORE, getWeight, getMaxScore, gradeInfo } from '../data/scoring';
 import { buildEmailHTML } from '../builders/buildEmailHTML';
@@ -15,7 +14,7 @@ type FetchStatus = 'idle' | 'fetching' | 'done' | 'error';
 type AnalyzeStatus = 'idle' | 'analyzing' | 'done' | 'error';
 type SendStatus = 'idle' | 'sending' | 'done' | 'error';
 
-export default function useReviewForm() {
+export default function useReviewForm(learners: { name: string; email: string }[] = []) {
   // ── Core form ─────────────────────────────────────────────────────────────
   const [learnerName, setLearnerName] = useState('');
   const [learnerEmail, setLearnerEmail] = useState('');
@@ -76,7 +75,7 @@ export default function useReviewForm() {
 
   const handleLearnerSelect = (name: string) => {
     setLearnerName(name);
-    const found = LEARNERS.find((l) => l.name === name);
+    const found = learners.find((l) => l.name === name);
     setLearnerEmail(found ? found.email : '');
   };
 
@@ -315,6 +314,7 @@ export default function useReviewForm() {
     // AI
     analyzeStatus, analyzeError, aiSuggested,
     sendStatus, sendError,
+    learners,
     lab, maxScore, totalScore, grade, passed, isValid, canAnalyze,
     report, copied,
     handleLearnerSelect, handleFetchRepo, handleAnalyze, handleSendEmail, copy, handleGenerate, reset, reportRef,

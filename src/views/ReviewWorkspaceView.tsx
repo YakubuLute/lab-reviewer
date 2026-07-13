@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { LEARNERS } from '../data/learners';
 import { LAB_DATA } from '../data/labs';
 import { PASSING_SCORE, getWeight } from '../data/scoring';
 import { learnerColor, getInitials } from '../data/learnerColors';
@@ -46,6 +45,7 @@ type FormState = {
   passed: boolean; isValid: boolean; canAnalyze: boolean;
   report: import('../../shared/types').Report | null;
   copied: string;
+  learners: { name: string; email: string }[];
   handleLearnerSelect: (n: string) => void;
   handleFetchRepo: () => void;
   handleAnalyze: () => void;
@@ -260,7 +260,7 @@ function ContextBar({ form }: { form: FormState }) {
 
         {pickerOpen && (
           <div style={{ position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 60, width: 290, background: '#fff', border: '1px solid var(--line)', borderRadius: 12, boxShadow: 'var(--shadow-l)', padding: 5, animation: 'll-fade .15s ease', maxHeight: 330, overflowY: 'auto' }}>
-            {LEARNERS.map((l) => {
+            {form.learners.map((l) => {
               const lc = learnerColor(l.name);
               const active = l.name === learnerName;
               return (

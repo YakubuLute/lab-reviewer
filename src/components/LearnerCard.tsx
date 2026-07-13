@@ -1,13 +1,14 @@
-import { LEARNERS, EMMANUEL_EMAIL } from '../data/learners';
+import { EMMANUEL_EMAIL } from '../data/learners';
 import { S } from '../styles/formStyles';
 
 interface Props {
   learnerName: string;
   learnerEmail: string;
+  learners: { name: string; email: string }[];
   handleLearnerSelect: (name: string) => void;
 }
 
-export default function LearnerCard({ learnerName, learnerEmail, handleLearnerSelect }: Props) {
+export default function LearnerCard({ learnerName, learnerEmail, learners, handleLearnerSelect }: Props) {
   return (
     <div style={S.card}>
       <div style={S.cardHeader}>
@@ -23,7 +24,7 @@ export default function LearnerCard({ learnerName, learnerEmail, handleLearnerSe
               style={{ ...S.input, cursor: 'pointer', color: learnerName ? 'var(--ink)' : 'var(--ink3)' }}
             >
               <option value="">— Choose a learner —</option>
-              {LEARNERS.map((l) => <option key={l.email} value={l.name}>{l.name}</option>)}
+              {learners.map((l) => <option key={l.email} value={l.name}>{l.name}</option>)}
             </select>
           </div>
           <div>
