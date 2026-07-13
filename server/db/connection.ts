@@ -20,7 +20,8 @@ export async function getSql(): Promise<any> {
     throw _error;
   }
 
-  let postgres: Awaited<typeof import('postgres')>['default'];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let postgres: any;
   try {
     const mod = await import('postgres');
     postgres = mod.default;
