@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import type { CodeFile, GradeInfo, Report } from '../../shared/types';
 import { LAB_DATA } from '../data/labs';
 import { RATING_LABELS, PASSING_SCORE, getWeight, getMaxScore, gradeInfo } from '../data/scoring';
@@ -43,11 +43,11 @@ export default function useReviewForm(learners: { name: string; email: string }[
   const [fetchError, setFetchError] = useState('');
   const [truncatedNote, setTruncatedNote] = useState('');
 
-  // ── Reviewer notes (the seam — written by Assist compile or freeform) ─────
-  const [reviewerNotes, setReviewerNotes] = useState('');
+  // ── Reviewer notes — manual (freeform) or derived (guided) ────────────────
+  const [_reviewerNotes, _setReviewerNotes] = useState('');
 
   // ── Code Review Assist state ───────────────────────────────────────────────
-  const [assistMode, setAssistMode] = useState<'guided' | 'freeform'>('guided');
+  const [assistMode, _setAssistMode] = useState<'guided' | 'freeform'>('guided');
   const [guideReady, setGuideReady] = useState(false);
   const [guideGenerating, setGuideGenerating] = useState(false);
   const [guideGenPct, setGuideGenPct] = useState(0);
@@ -73,27 +73,32 @@ export default function useReviewForm(learners: { name: string; email: string }[
   const lab = selectedLab ? LAB_DATA[selectedLab] ?? null : null;
   const maxScore = getMaxScore(attempt);
 
-  const handleLearnerSelect = (name: string) => {
-    setLearnerName(name);
-    const found = learners.find((l) => l.name === name);
-    setLearnerEmail(found ? found.email : '');
+  // Compile guided answers into reviewer notes (replaces the effect that did this)
+  const compiledNotes = useMemo(() => {
+    if (!guideReady || assistMode !== 'guided' || !selectedLab) return '';
+    const guideId = LAB_TO_GUIDE[selectedLab];
+    if (!guideId) return '';
+    const guide = GUIDE_DATA[guideId];
+    if (!guide) return '';
+    return compileGuideNotes(guide, learnerName, selectedLab, guideNotes, guideSkipped, guideExtra);
+  }, [guideReady, assistMode, selectedLab, learnerName, guideNotes, guideSkipped, guideExtra]);
+
+  // When guide is active + ready, reviewerNotes is the auto-compiled value.
+  // In freeform mode (or before guide generates), it falls back to the manual state.
+  const reviewerNotes = guideReady && assistMode === 'guided' ? compiledNotes : _reviewerNotes;
+  const setReviewerNotes = _setReviewerNotes;
+
+  // ── Assist mode switch — snapshot compiled notes into manual state ─────────
+  const setAssistMode = (mode: 'guided' | 'freeform') => {
+    if (mode === 'freeform' && assistMode === 'guided') {
+      _setReviewerNotes(compiledNotes);
+    }
+    _setAssistMode(mode);
   };
 
-  // Reset scores when lab changes
-  useEffect(() => {
-    if (selectedLab) {
-      const init: Record<string, number> = {};
-      LAB_DATA[selectedLab]?.criteria.forEach((c) => { init[c.id] = 0; });
-      setScores(init);
-      setFeedbacks({});
-      setAiSuggested(false);
-      setAiEmailBody('');
-    }
-  }, [selectedLab]);
-
-  // Reset Assist state when context changes (learner / lab / attempt)
-  useEffect(() => {
-    setAssistMode('guided');
+  // ── Context reset (replaces the effect that reset assist state on context change)
+  const resetContext = () => {
+    _setAssistMode('guided');
     setGuideReady(false);
     setGuideGenerating(false);
     setGuideGenPct(0);
@@ -104,19 +109,36 @@ export default function useReviewForm(learners: { name: string; email: string }[
     setNewGuideQ('');
     setOpenSections({});
     setLiveSession(false);
-    setReviewerNotes('');
-  }, [learnerName, selectedLab, attempt]);
+    _setReviewerNotes('');
+  };
 
-  // Compile guided answers → reviewer notes whenever they change
-  useEffect(() => {
-    if (!guideReady || assistMode !== 'guided' || !selectedLab) return;
-    const guideId = LAB_TO_GUIDE[selectedLab];
-    if (!guideId) return;
-    const guide = GUIDE_DATA[guideId];
-    if (!guide) return;
-    const compiled = compileGuideNotes(guide, learnerName, selectedLab, guideNotes, guideSkipped, guideExtra);
-    setReviewerNotes(compiled);
-  }, [guideNotes, guideSkipped, guideExtra, guideReady, assistMode, selectedLab, learnerName]);
+  // ── Lab selection — resets scores + assist context (replaces effect) ───────
+  const handleSelectLab = (newLab: string) => {
+    setSelectedLab(newLab);
+    if (newLab) {
+      const init: Record<string, number> = {};
+      LAB_DATA[newLab]?.criteria.forEach((c) => { init[c.id] = 0; });
+      setScores(init);
+      setFeedbacks({});
+      setAiSuggested(false);
+      setAiEmailBody('');
+    }
+    resetContext();
+  };
+
+  // ── Learner selection — also resets assist context ────────────────────────
+  const handleLearnerSelect = (name: string) => {
+    setLearnerName(name);
+    const found = learners.find((l) => l.name === name);
+    setLearnerEmail(found ? found.email : '');
+    resetContext();
+  };
+
+  // ── Attempt selection — also resets assist context ────────────────────────
+  const handleSetAttempt = (a: string) => {
+    setAttempt(a);
+    resetContext();
+  };
 
   const weightedScore = (id: string, base: number): string =>
     (((scores[id] ?? 0) / 5) * getWeight(base, attempt)).toFixed(1);
@@ -287,12 +309,14 @@ export default function useReviewForm(learners: { name: string; email: string }[
     setReviewDate(new Date().toISOString().split('T')[0]);
     setCodeSource('github'); setRepoUrl(''); setBranch(''); setPastedCode('');
     setCodeFiles([]); setFetchStatus('idle'); setFetchError(''); setTruncatedNote('');
-    setReviewerNotes(''); setAnalyzeStatus('idle'); setAnalyzeError('');
+    setAnalyzeStatus('idle'); setAnalyzeError('');
     setAiSuggested(false); setAiEmailBody(''); setSendStatus('idle'); setSendError('');
+    setScores({}); setFeedbacks({});
+    resetContext();
   };
 
   return {
-    learnerName, learnerEmail, selectedLab, setSelectedLab, attempt, setAttempt,
+    learnerName, learnerEmail, selectedLab, setSelectedLab: handleSelectLab, attempt, setAttempt: handleSetAttempt,
     scores, setScores, feedbacks, setFeedbacks,
     strengths, setStrengths, improvements, setImprovements, otherRemarks, setOtherRemarks,
     redoLab, setRedoLab, plagiarism, setPlagiarism,

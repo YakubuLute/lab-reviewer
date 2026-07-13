@@ -27,7 +27,7 @@ type FormState = {
   codeFiles: { path: string; content: string }[];
   fetchStatus: string; fetchError: string; truncatedNote: string;
   reviewerNotes: string; setReviewerNotes: (v: string) => void;
-  assistMode: 'guided' | 'freeform'; setAssistMode: React.Dispatch<React.SetStateAction<'guided' | 'freeform'>>;
+  assistMode: 'guided' | 'freeform'; setAssistMode: (mode: 'guided' | 'freeform') => void;
   guideReady: boolean; guideGenerating: boolean; guideGenPct: number;
   guideNotes: Record<string, string>; setGuideNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   guideDone: Record<string, boolean>; setGuideDone: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
