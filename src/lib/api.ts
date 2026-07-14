@@ -135,15 +135,34 @@ export interface SaveReviewPayload {
   otherRemarks?: string;
   redoFlag?: boolean;
   plagiarismConcern?: boolean;
-  emailSentAt?: string;
 }
 
-export function saveReview(payload: SaveReviewPayload): Promise<{ id: string }> {
+export interface Review {
+  id: string;
+  reviewerId: string;
+  learnerName: string;
+  learnerEmail: string;
+  labTitle: string;
+  attempt: string;
+  totalScore: number | null;
+  grade: string | null;
+  passed: boolean | null;
+  redoFlag: boolean;
+  plagiarismConcern: boolean;
+  emailSentAt: string | null;
+  createdAt: string;
+}
+
+export function saveReview(payload: SaveReviewPayload): Promise<Review> {
   return post('/api/reviews', payload);
 }
 
-export function getReviews(): Promise<SaveReviewPayload[]> {
+export function getReviews(): Promise<Review[]> {
   return get('/api/reviews');
+}
+
+export function markReviewEmailSent(id: string): Promise<{ id: string; emailSentAt: string }> {
+  return request(`/api/reviews/${id}/mark-sent`, { method: 'PATCH' });
 }
 
 // ── Existing API surface (unchanged) ─────────────────────────────────────────

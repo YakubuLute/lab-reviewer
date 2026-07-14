@@ -4,7 +4,7 @@ import { LAB_DATA } from '../data/labs';
 import { RATING_LABELS, PASSING_SCORE, getWeight, getMaxScore, gradeInfo } from '../data/scoring';
 import { buildEmailHTML } from '../builders/buildEmailHTML';
 import { buildExcelRow } from '../builders/buildExcelRow';
-import { fetchRepo, analyzeCode, sendEmail } from '../lib/api';
+import { fetchRepo, analyzeCode, sendEmail, saveReview, markReviewEmailSent } from '../lib/api';
 import {
   GUIDE_DATA, LAB_TO_GUIDE, compileGuideNotes,
   type ExtraQuestion,
@@ -64,6 +64,9 @@ export default function useReviewForm(learners: { name: string; email: string }[
   const [analyzeError, setAnalyzeError] = useState('');
   const [aiSuggested, setAiSuggested] = useState(false);
   const [aiEmailBody, setAiEmailBody] = useState('');
+
+  // ── Review persistence ────────────────────────────────────────────────────
+  const [savedReviewId, setSavedReviewId] = useState<string | null>(null);
 
   // ── Email sending ─────────────────────────────────────────────────────────
   const [ccEmail, setCcEmail] = useState('');
@@ -157,28 +160,14 @@ export default function useReviewForm(learners: { name: string; email: string }[
   const handleGenerateGuide = () => {
     const guideId = LAB_TO_GUIDE[selectedLab ?? ''];
     if (!guideId || !GUIDE_DATA[guideId]) return;
-
-    setGuideGenerating(true);
-    setGuideReady(false);
-    setGuideGenPct(0);
     setGuideNotes({});
     setGuideDone({});
     setGuideSkipped({});
     setGuideExtra([]);
     setOpenSections({});
-
-    let pct = 0;
-    const timer = setInterval(() => {
-      pct = Math.min(pct + 8, 100);
-      setGuideGenPct(pct);
-      if (pct >= 100) {
-        clearInterval(timer);
-        setTimeout(() => {
-          setGuideGenerating(false);
-          setGuideReady(true);
-        }, 200);
-      }
-    }, 100);
+    setGuideGenPct(100);
+    setGuideGenerating(false);
+    setGuideReady(true);
   };
 
   const handleRegenerateGuide = () => {
@@ -286,6 +275,22 @@ export default function useReviewForm(learners: { name: string; email: string }[
     setSendStatus('idle');
     setSendError('');
     setTimeout(() => reportRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+    // Persist review to DB (fire-and-forget — does not block the UI)
+    saveReview({
+      learnerName, learnerEmail,
+      labTitle: selectedLab,
+      attempt: attempt as '1st' | '2nd',
+      totalScore: parseFloat(totalScore),
+      grade: grade.label,
+      passed,
+      criteria: criteriaRows,
+      strengths,
+      gaps: improvements,
+      otherRemarks,
+      redoFlag: redoLab,
+      plagiarismConcern: plagiarism,
+    }).then((saved) => setSavedReviewId(saved.id)).catch(() => {/* silent */});
   };
 
   // ── Send email ────────────────────────────────────────────────────────────
@@ -296,6 +301,9 @@ export default function useReviewForm(learners: { name: string; email: string }[
     try {
       await sendEmail({ to: report.learnerEmail, cc: ccEmail.trim() || undefined, subject: report.subject, html: report.html });
       setSendStatus('done');
+      if (savedReviewId) {
+        markReviewEmailSent(savedReviewId).catch(() => {/* silent */});
+      }
     } catch (err) {
       setSendError((err as Error).message);
       setSendStatus('error');
@@ -313,6 +321,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
     setAnalyzeStatus('idle'); setAnalyzeError('');
     setAiSuggested(false); setAiEmailBody(''); setSendStatus('idle'); setSendError('');
     setScores({}); setFeedbacks({});
+    setSavedReviewId(null);
     resetContext();
   };
 

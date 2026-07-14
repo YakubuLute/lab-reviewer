@@ -528,7 +528,7 @@ interface Props {
   reviewerNotes: string;
   setReviewerNotes: (v: string) => void;
   assistMode: 'guided' | 'freeform';
-  setAssistMode: React.Dispatch<React.SetStateAction<'guided' | 'freeform'>>;
+  setAssistMode: (mode: 'guided' | 'freeform') => void;
   guideReady: boolean;
   guideGenerating: boolean;
   guideGenPct: number;

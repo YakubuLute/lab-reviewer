@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getReviews, type Review } from './lib/api';
 import { useAuth } from './auth/useAuth';
 import { useCohorts } from './data/cohorts';
 import useReviewForm from './hooks/useReviewForm';
@@ -56,6 +57,12 @@ export default function App() {
   const cohortsCtx = useCohorts(user?.id ?? '__guest__');
   const form = useReviewForm(cohortsCtx.currentCohort?.learners ?? []);
 
+  const [reviews, setReviews] = useState<Review[]>([]);
+  useEffect(() => {
+    if (!user) return;
+    getReviews().then(setReviews).catch(() => {});
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Auth gate ────────────────────────────────────────────────────────────
   if (!user) {
     if (authScreen === 'register') {
@@ -109,6 +116,7 @@ export default function App() {
           <MyDayView
             firstName={user.firstName}
             cohorts={cohorts}
+            reviews={reviews}
             onStartReview={startReview}
             onSelectCohort={(id) => { setCurrentCohortId(id); setActiveView('dashboard'); }}
             onCreateCohort={() => setCreateCohortOpen(true)}

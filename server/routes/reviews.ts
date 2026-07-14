@@ -90,4 +90,24 @@ router.get('/reviews', async (req: Request, res: Response, next: NextFunction) =
   } catch (err) { next(err); }
 });
 
+// ── PATCH /api/reviews/:id/mark-sent ─────────────────────────────────────────
+
+router.patch('/reviews/:id/mark-sent', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sql = await getSql();
+    const [row]: { reviewerId: string }[] = await sql`
+      SELECT reviewer_id AS "reviewerId" FROM reviews WHERE id = ${req.params.id} LIMIT 1
+    `;
+    if (!row || row.reviewerId !== req.jwtUser!.userId) {
+      res.status(404).json({ error: 'Review not found' }); return;
+    }
+    const [updated]: Pick<DbReview, 'id' | 'emailSentAt'>[] = await sql`
+      UPDATE reviews SET email_sent_at = NOW()
+      WHERE id = ${req.params.id}
+      RETURNING id, email_sent_at AS "emailSentAt"
+    `;
+    res.json(updated);
+  } catch (err) { next(err); }
+});
+
 export default router;

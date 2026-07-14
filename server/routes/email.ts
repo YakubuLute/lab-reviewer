@@ -1,5 +1,4 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { ALLOWED_EMAILS } from '../../shared/learners.js';
 import { sendMail } from '../services/mailer.js';
 
 const router = Router();
@@ -18,13 +17,6 @@ router.post('/send-email', async (req: Request<object, object, SendEmailBody>, r
     if (!to || typeof to !== 'string') { res.status(400).json({ error: '"to" is required' }); return; }
     if (!subject || typeof subject !== 'string') { res.status(400).json({ error: '"subject" is required' }); return; }
     if (!html || typeof html !== 'string') { res.status(400).json({ error: '"html" is required' }); return; }
-
-    if (!ALLOWED_EMAILS.has(to.trim().toLowerCase())) {
-      res.status(403).json({
-        error: `"${to}" is not in the approved learner roster. Emails can only be sent to registered learners.`,
-      });
-      return;
-    }
 
     const ccAddr = cc?.trim() || undefined;
     const result = await sendMail({ to: to.trim().toLowerCase(), cc: ccAddr, subject, html });

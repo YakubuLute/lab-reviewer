@@ -55,6 +55,7 @@ type FormState = {
   reset: () => void;
   reportRef: React.RefObject<HTMLDivElement | null>;
   sendStatus: string; sendError: string;
+  ccEmail: string; setCcEmail: (v: string) => void;
 };
 
 interface Props { form: FormState; onGoReport: () => void; }
@@ -96,11 +97,9 @@ function RightPanel({ form, onGoReport }: { form: FormState; onGoReport: () => v
               <span style={{ fontFamily: 'var(--mono)', fontSize: 44, fontWeight: 700, letterSpacing: '-.02em', lineHeight: .9, color: 'var(--ink)' }}>{totalScore}</span>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 20, color: 'var(--ink3)' }}>%</span>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, padding: '5px 12px', borderRadius: 8, background: gradeBg, color: gradeFg }}>{grade.label}</span>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', marginTop: 6, color: passed ? 'var(--green-d)' : 'var(--red)' }}>
-                {passed ? 'PASSED' : 'NEEDS WORK'}
-              </div>
+            <div style={{ textAlign: 'right', marginBottom: 10}}>
+              <span style={{ fontSize: 13, fontWeight: 700, padding: '5px 12px', marginBottom:50, borderRadius: 8, background: gradeBg, color: gradeFg }}>{grade.label}</span>
+            
             </div>
           </div>
         </div>
@@ -113,7 +112,7 @@ function RightPanel({ form, onGoReport }: { form: FormState; onGoReport: () => v
             </div>
             {/* Pass marker */}
             <div style={{ position: 'absolute', top: -4, bottom: -4, left: `${passPct}%`, width: 2, background: 'var(--ink)', borderRadius: 2 }} />
-            <div style={{ position: 'absolute', top: -19, left: `${passPct}%`, transform: 'translateX(-50%)', fontFamily: 'var(--mono)', fontSize: 9, fontWeight: 700, color: 'var(--ink2)', whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'absolute', top: -19, left: `${passPct - 5}%`, transform: 'translateX(-50%)', fontFamily: 'var(--mono)', fontSize: 9, fontWeight: 700, color: 'var(--ink2)', whiteSpace: 'nowrap' }}>
               {PASSING_SCORE} PASS
             </div>
           </div>
@@ -226,13 +225,13 @@ function RightPanel({ form, onGoReport }: { form: FormState; onGoReport: () => v
 }
 
 // ── Context bar ────────────────────────────────────────────────────────────
+const date = Date.now().toString()
 function ContextBar({ form }: { form: FormState }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const { learnerName, learnerEmail, selectedLab, setSelectedLab, attempt, setAttempt, handleLearnerSelect, reviewerName, reviewDate } = form;
   const { bg, fg } = learnerColor(learnerName);
   const initials = learnerName ? getInitials(learnerName) : '??';
-
-  const now = new Date(reviewDate || Date.now());
+  const now = new Date(reviewDate || date);
   const dateShort = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return (
@@ -420,6 +419,7 @@ export default function ReviewWorkspaceView({ form, onGoReport }: Props) {
             <div ref={reportRef}>
               <ReportOutput
                 report={report} copied={copied} copy={copy} reset={reset}
+                ccEmail={form.ccEmail} onCcEmailChange={form.setCcEmail}
                 onSendEmail={handleSendEmail} sendStatus={sendStatus as 'idle' | 'sending' | 'done' | 'error'} sendError={sendError}
               />
             </div>
