@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { getInitials } from '../data/learnerColors';
 import type { Cohort } from '../data/cohorts';
+import AddLearnerModal from '../components/AddLearnerModal';
 
 interface Props {
   cohort: Cohort;
   firstName: string;
   onNewReview: () => void;
-  onAddLearner: (name: string, email?: string) => void;
+  onAddLearner: (name: string, email?: string) => Promise<void>;
+  onBulkAddLearners: (csv: string) => Promise<number>;
   onRemoveLearner: (learnerId: string) => void;
   onAddLab: (name: string, due: string) => void;
   onUpdateLabDue: (labId: string, due: string) => void;
@@ -40,15 +42,13 @@ function labDueMeta(due: string): { bg: string; fg: string; label: string } {
 
 export default function CohortDashboardView({
   cohort, firstName, onNewReview,
-  onAddLearner, onRemoveLearner,
+  onAddLearner, onBulkAddLearners, onRemoveLearner,
   onAddLab, onUpdateLabDue, onRemoveLab,
 }: Props) {
   const { learners, labs, name: cohortName, track } = cohort;
 
-  // add learner form
+  // add learner modal
   const [addLearnerOpen, setAddLearnerOpen] = useState(false);
-  const [newName, setNewName]   = useState('');
-  const [newEmail, setNewEmail] = useState('');
 
   // add lab form
   const [addLabOpen, setAddLabOpen] = useState(false);
@@ -74,12 +74,6 @@ export default function CohortDashboardView({
   ];
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  function handleAddLearner() {
-    const name = newName.trim();
-    if (!name) return;
-    onAddLearner(name, newEmail.trim() || undefined);
-    setNewName(''); setNewEmail(''); setAddLearnerOpen(false);
-  }
 
   function handleAddLab() {
     const name = newLabName.trim();
@@ -144,7 +138,7 @@ export default function CohortDashboardView({
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 10.5, color: 'var(--ink3)', fontFamily: 'var(--mono)', letterSpacing: '.02em' }}>LAB PROGRESS · LATEST GRADE</span>
               <button
-                onClick={() => { setAddLearnerOpen(!addLearnerOpen); setNewName(''); setNewEmail(''); }}
+                onClick={() => setAddLearnerOpen(true)}
                 style={{ background: 'var(--orange-t)', color: 'var(--orange-d)', border: '1px solid var(--orange-t2)', padding: '6px 12px', borderRadius: 8, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--sans)' }}
               >
                 + Add learner
@@ -152,40 +146,14 @@ export default function CohortDashboardView({
             </div>
           </div>
 
-          {/* Add learner form */}
           {addLearnerOpen && (
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, padding: '13px 20px', borderBottom: '1px solid var(--line2)', background: '#FFFDFB', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 160 }}>
-                <label style={{ fontSize: 11, color: 'var(--ink2)', fontWeight: 500, display: 'block', marginBottom: 5 }}>Full name</label>
-                <input
-                  value={newName} onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g. Kofi Asante"
-                  style={{ width: '100%', border: '1px solid var(--line)', borderRadius: 9, padding: '8px 11px', fontSize: 12.5, fontFamily: 'var(--sans)', color: 'var(--ink)', outline: 'none', boxSizing: 'border-box' }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddLearner()}
-                />
-              </div>
-              <div style={{ flex: 1, minWidth: 160 }}>
-                <label style={{ fontSize: 11, color: 'var(--ink2)', fontWeight: 500, display: 'block', marginBottom: 5 }}>Email (optional)</label>
-                <input
-                  value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="auto-generated if blank"
-                  style={{ width: '100%', border: '1px solid var(--line)', borderRadius: 9, padding: '8px 11px', fontSize: 12.5, fontFamily: 'var(--sans)', color: 'var(--ink)', outline: 'none', boxSizing: 'border-box' }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddLearner()}
-                />
-              </div>
-              <button
-                onClick={handleAddLearner}
-                style={{ background: 'var(--orange)', color: '#fff', border: 'none', padding: '9px 16px', borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--sans)', whiteSpace: 'nowrap' }}
-              >
-                Add learner
-              </button>
-              <button
-                onClick={() => setAddLearnerOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--ink3)', fontSize: 12, cursor: 'pointer', padding: '9px 4px', fontFamily: 'var(--sans)' }}
-              >
-                Cancel
-              </button>
-            </div>
+            <AddLearnerModal
+              cohortName={cohortName}
+              cohortTrack={track}
+              onAdd={onAddLearner}
+              onBulkAdd={onBulkAddLearners}
+              onClose={() => setAddLearnerOpen(false)}
+            />
           )}
 
           {learners.length === 0 ? (

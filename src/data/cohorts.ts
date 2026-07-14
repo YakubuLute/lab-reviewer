@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   getCohorts, createCohortApi, deleteCohortApi,
-  addLearnerApi, updateLearnerApi, removeLearnerApi,
+  addLearnerApi, updateLearnerApi, removeLearnerApi, bulkAddLearnersApi,
   addLabApi, updateLabDueApi, removeLabApi,
 } from '../lib/api';
 
@@ -135,6 +135,14 @@ export function useCohorts(instructorId: string) {
     ));
   }, [cohorts]);
 
+  const bulkAddLearners = useCallback(async (cohortId: string, csv: string): Promise<number> => {
+    const { added, learners } = await bulkAddLearnersApi(cohortId, csv);
+    setCohorts(prev => prev.map(c =>
+      c.id === cohortId ? { ...c, learners: [...c.learners, ...learners] } : c
+    ));
+    return added;
+  }, []);
+
   const removeLearner = useCallback(async (cohortId: string, learnerId: string): Promise<void> => {
     await removeLearnerApi(cohortId, learnerId);
     setCohorts(prev => prev.map(c =>
@@ -185,6 +193,7 @@ export function useCohorts(instructorId: string) {
     createCohort,
     deleteCohort,
     addLearner,
+    bulkAddLearners,
     removeLearner,
     updateLearner,
     addLab,

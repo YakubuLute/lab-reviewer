@@ -107,6 +107,12 @@ export function removeLearnerApi(cohortId: string, learnerId: string): Promise<{
   return del(`/api/cohorts/${cohortId}/learners/${learnerId}`);
 }
 
+export function bulkAddLearnersApi(
+  cohortId: string, csv: string,
+): Promise<{ added: number; learners: CohortLearner[] }> {
+  return post(`/api/cohorts/${cohortId}/learners/bulk`, { csv });
+}
+
 export function addLabApi(cohortId: string, name: string, due: string): Promise<CohortLab> {
   return post(`/api/cohorts/${cohortId}/labs`, { name, due });
 }

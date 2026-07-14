@@ -32,6 +32,9 @@ const SCHEMA_SQL = `
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
+  CREATE UNIQUE INDEX IF NOT EXISTS cohort_learners_cohort_email
+    ON cohort_learners (cohort_id, email);
+
   CREATE TABLE IF NOT EXISTS cohort_labs (
     id         UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
     cohort_id  UUID    NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,

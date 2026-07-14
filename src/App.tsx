@@ -89,7 +89,7 @@ export default function App() {
     setActiveView('workspace');
   }
 
-  const { cohorts, currentCohort, setCurrentCohortId, createCohort, addLearner, removeLearner, addLab, updateLabDue, removeLab } = cohortsCtx;
+  const { cohorts, currentCohort, setCurrentCohortId, createCohort, addLearner, bulkAddLearners, removeLearner, addLab, updateLabDue, removeLab } = cohortsCtx;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
@@ -130,6 +130,7 @@ export default function App() {
               firstName={user.firstName}
               onNewReview={() => setActiveView('workspace')}
               onAddLearner={(name, email) => addLearner(currentCohort.id, name, email)}
+              onBulkAddLearners={(csv) => bulkAddLearners(currentCohort.id, csv)}
               onRemoveLearner={(lid) => removeLearner(currentCohort.id, lid)}
               onAddLab={(name, due) => addLab(currentCohort.id, name, due)}
               onUpdateLabDue={(labId, due) => updateLabDue(currentCohort.id, labId, due)}

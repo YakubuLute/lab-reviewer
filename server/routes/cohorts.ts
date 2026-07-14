@@ -140,6 +140,70 @@ router.post('/cohorts/:id/learners', async (req: Request, res: Response, next: N
   } catch (err) { next(err); }
 });
 
+// ── POST /api/cohorts/:id/learners/bulk ──────────────────────────────────────
+
+function parseCsv(text: string): Array<{ name: string; email?: string }> {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return [];
+
+  const sep = (lines[0] ?? '').includes(';') ? ';' : ',';
+
+  // Detect header row (contains "name" or "email" as a column heading)
+  const firstCells = (lines[0] ?? '').toLowerCase().split(sep).map((c) => c.replace(/^["']|["']$/g, '').trim());
+  const hasHeader = firstCells.some((c) => c === 'name' || c === 'email' || c === 'full name');
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+  const nameIdx  = hasHeader ? firstCells.findIndex((c) => c.includes('name'))  : 0;
+  const emailIdx = hasHeader ? firstCells.findIndex((c) => c.includes('email')) : 1;
+
+  return dataLines
+    .map((line) => {
+      const parts = line.split(sep).map((p) => p.trim().replace(/^["']|["']$/g, ''));
+      const name  = parts[nameIdx >= 0 ? nameIdx : 0]?.trim() ?? '';
+      const email = emailIdx >= 0 ? (parts[emailIdx]?.trim() || undefined) : undefined;
+      return { name, email };
+    })
+    .filter((r) => r.name.length > 0);
+}
+
+router.post('/cohorts/:id/learners/bulk', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sql     = await getSql();
+    const [owner]: { instructorId: string }[] = await sql`
+      SELECT instructor_id AS "instructorId" FROM cohorts WHERE id = ${req.params.id} LIMIT 1
+    `;
+    if (!owner || owner.instructorId !== req.jwtUser!.userId) {
+      res.status(404).json({ error: 'Cohort not found' }); return;
+    }
+
+    const { csv } = z.object({ csv: z.string().min(1) }).parse(req.body);
+    const rows = parseCsv(csv);
+    if (rows.length === 0) { res.status(400).json({ error: 'No valid rows found in CSV' }); return; }
+    if (rows.length > 500) { res.status(400).json({ error: 'Maximum 500 learners per upload' }); return; }
+
+    const [{ count }]: [{ count: number }] = await sql`
+      SELECT COUNT(*)::int AS count FROM cohort_learners WHERE cohort_id = ${req.params.id}
+    `;
+    let offset = count;
+
+    const inserted: DbCohortLearner[] = [];
+    for (const row of rows) {
+      const resolvedEmail = row.email?.trim() ||
+        row.name.toLowerCase().split(/\s+/).slice(0, 2).join('.') + '@amalitech.org';
+      const [bg, fg] = AVATAR_PALETTE[offset % AVATAR_PALETTE.length] as [string, string];
+      offset++;
+      const [learner]: DbCohortLearner[] = await sql`
+        INSERT INTO cohort_learners (cohort_id, name, email, bg, fg)
+        VALUES (${req.params.id}, ${row.name}, ${resolvedEmail}, ${bg}, ${fg})
+        ON CONFLICT (cohort_id, email) DO NOTHING
+        RETURNING id, cohort_id AS "cohortId", name, email, done, grade, avg, flagged, bg, fg
+      `;
+      if (learner) inserted.push(learner);
+    }
+
+    res.status(201).json({ added: inserted.length, learners: inserted });
+  } catch (err) { next(err); }
+});
+
 // ── PATCH /api/cohorts/:id/learners/:learnerId ────────────────────────────────
 
 const PatchLearnerSchema = z.object({
