@@ -37,6 +37,14 @@ export interface Cohort {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
+export const COHORT_PROGRAMS = [
+  'NSP',
+  'T-Shape Program',
+  'DEG Cohort',
+] as const;
+
+export type CohortProgram = typeof COHORT_PROGRAMS[number];
+
 export const TRACKS = [
   'Backend · Node.js',
   'Frontend · React',
