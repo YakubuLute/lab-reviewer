@@ -22,7 +22,7 @@ export function rateLimit(opts: { max: number; windowMs: number; message: string
     const entry = store.get(key);
 
     if (!entry || now > entry.resetAt) {
-      store.set(key, { count: 1, resetAt: now + windowMs });
+      store.set(key, { count: 3, resetAt: now + windowMs });
       next();
       return;
     }

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -n client,server -c cyan,yellow \"npm run client\" \"npm run server\"",
     "client": "vite",
-    "server": "nodemon --watch server --watch shared --ext ts --exec tsx server/index.ts",
+    "server": "nodemon --watch server --watch shared --watch server/.env --ext ts,env --exec tsx server/index.ts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
     "build": "vite build",
     "lint": "eslint .",
@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
+    "@google/genai": "^2.11.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",

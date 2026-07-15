@@ -44,10 +44,10 @@ app.use(cors({
 app.use(express.json({ limit: '2mb' }));
 
 // ── Rate limiters ─────────────────────────────────────────────────────────────
-const authLimit    = rateLimit({ max: 10, windowMs: 60_000, message: 'Too many login attempts, please wait a minute.' });
-const defaultLimit = rateLimit({ max: 60, windowMs: 60_000, message: 'Too many requests, please slow down.' });
-const aiLimit      = rateLimit({ max: 20, windowMs: 60_000, message: 'AI analysis rate limit reached, please wait.' });
-const emailLimit   = rateLimit({ max:  5, windowMs: 60_000, message: 'Email rate limit reached, please wait.' });
+const authLimit    = rateLimit({ max: 30,  windowMs: 60_000, message: 'Too many login attempts, please wait a minute.' });
+const defaultLimit = rateLimit({ max: 200, windowMs: 60_000, message: 'Too many requests, please slow down.' });
+const aiLimit      = rateLimit({ max: 60,  windowMs: 60_000, message: 'AI analysis rate limit reached, please wait.' });
+const emailLimit   = rateLimit({ max: 20,  windowMs: 60_000, message: 'Email rate limit reached, please wait.' });
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (_req: Request, res: Response) => res.json({ ok: true }));
