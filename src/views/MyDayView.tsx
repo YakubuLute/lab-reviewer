@@ -49,6 +49,23 @@ export default function MyDayView({ firstName, cohorts, reviews, onStartReview, 
     return reviews.filter((r) => emails.has(r.learnerEmail.toLowerCase())).length;
   };
 
+  // Redo queue: reviews flagged for redo with no subsequent 2nd-attempt review
+  const needsRedoMap = new Map<string, Review>();
+  reviews
+    .filter((r) => r.redoFlag)
+    .forEach((r) => {
+      const key = `${r.learnerEmail.toLowerCase()}::${r.labTitle}`;
+      const existing = needsRedoMap.get(key);
+      if (!existing || new Date(r.createdAt) > new Date(existing.createdAt)) needsRedoMap.set(key, r);
+    });
+  const needsRedo = [...needsRedoMap.values()]
+    .filter((r) => !reviews.some(
+      (r2) => r2.attempt === '2nd' &&
+        r2.learnerEmail.toLowerCase() === r.learnerEmail.toLowerCase() &&
+        r2.labTitle === r.labTitle,
+    ))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   // Show most recent 15 reviews in queue
   const recentReviews = [...reviews]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -189,6 +206,43 @@ export default function MyDayView({ firstName, cohorts, reviews, onStartReview, 
                     Review →
                   </button>
                 )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Redo queue ──────────────────────────────────────────────────── */}
+      {needsRedo.length > 0 && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--amber)', borderRadius: 14, boxShadow: 'var(--shadow)', overflow: 'hidden', marginTop: 22 }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--line2)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: 'var(--amber)' }}>Needs Redo · {needsRedo.length}</h2>
+            <span style={{ fontSize: 11, color: 'var(--ink3)' }}>graded "Needs Work" — awaiting 2nd attempt</span>
+          </div>
+          {needsRedo.map((r) => {
+            const { bg, fg } = learnerColor(r.learnerName);
+            const initials = getInitials(r.learnerName);
+            return (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line2)' }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12, background: bg, color: fg }}>
+                  {initials}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{r.learnerName}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink2)', marginTop: 2 }}>
+                    {r.labTitle} · 1st attempt
+                    {r.totalScore != null && (
+                      <span style={{ fontFamily: 'var(--mono)', marginLeft: 6, color: 'var(--red)' }}>{r.totalScore.toFixed(1)}%</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ fontSize: 10.5, color: 'var(--ink3)', flexShrink: 0 }}>{timeAgo(r.createdAt)}</div>
+                <button
+                  onClick={() => onStartReview(r.learnerName, r.labTitle, '2nd')}
+                  style={{ flexShrink: 0, background: 'var(--amber)', color: '#fff', border: 'none', padding: '9px 15px', borderRadius: 9, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--sans)' }}
+                >
+                  Start 2nd attempt →
+                </button>
               </div>
             );
           })}

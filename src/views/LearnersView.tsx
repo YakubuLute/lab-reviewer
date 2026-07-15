@@ -65,8 +65,15 @@ interface Props {
 
 export default function LearnersView({ cohorts, reviews }: Props) {
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const summaries = buildSummaries(cohorts, reviews);
+  const filteredSummaries = search.trim()
+    ? summaries.filter((s) =>
+        s.learner.name.toLowerCase().includes(search.toLowerCase()) ||
+        s.learner.email.toLowerCase().includes(search.toLowerCase()),
+      )
+    : summaries;
   const sel = summaries.find((s) => s.learner.email === selectedEmail) ?? summaries[0] ?? null;
 
   if (summaries.length === 0) {
@@ -87,11 +94,19 @@ export default function LearnersView({ cohorts, reviews }: Props) {
 
       {/* ── Left: learner list ───────────────────────────────────────────── */}
       <div style={{ borderRight: '1px solid var(--line)', padding: '24px 0', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' }}>
-        <div style={{ padding: '0 16px 12px', fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--ink3)' }}>
-          ALL LEARNERS · {summaries.length}
+        <div style={{ padding: '12px 16px 8px' }}>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search learners…"
+            style={{ width: '100%', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none', fontFamily: 'var(--sans)', color: 'var(--ink)', background: 'var(--bg)', boxSizing: 'border-box' }}
+          />
+        </div>
+        <div style={{ padding: '0 16px 8px', fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--ink3)' }}>
+          {search ? `${filteredSummaries.length} of ${summaries.length}` : `ALL · ${summaries.length}`}
         </div>
 
-        {summaries.map(({ learner, cohortName, avg, latestGrade }) => {
+        {filteredSummaries.map(({ learner, cohortName, avg, latestGrade }) => {
           const active = learner.email === selectedEmail;
           const { bg, fg } = learnerColor(learner.name);
           const gm = latestGrade ? gradeMeta(latestGrade) : null;

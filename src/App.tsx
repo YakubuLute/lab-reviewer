@@ -58,6 +58,7 @@ export default function App() {
   const form = useReviewForm(
     cohortsCtx.currentCohort?.learners ?? [],
     user ? `${user.firstName} ${user.lastName}` : '',
+    user?.id ?? '',
   );
 
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -131,7 +132,9 @@ export default function App() {
             <CohortDashboardView
               cohort={currentCohort}
               firstName={user.firstName}
+              reviews={reviews}
               onNewReview={() => setActiveView('workspace')}
+              onStartReview={(name, lab, att) => { startReview(name, lab, att); }}
               onAddLearner={(name, email) => addLearner(currentCohort.id, name, email)}
               onBulkAddLearners={(csv) => bulkAddLearners(currentCohort.id, csv)}
               onRemoveLearner={(lid) => removeLearner(currentCohort.id, lid)}

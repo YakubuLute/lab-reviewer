@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import type { CodeFile, GradeInfo, Report } from '../../shared/types';
 import { LAB_DATA } from '../data/labs';
 import { RATING_LABELS, PASSING_SCORE, getWeight, getMaxScore, gradeInfo } from '../data/scoring';
@@ -14,37 +14,57 @@ type FetchStatus = 'idle' | 'fetching' | 'done' | 'error';
 type AnalyzeStatus = 'idle' | 'analyzing' | 'done' | 'error';
 type SendStatus = 'idle' | 'sending' | 'done' | 'error';
 
-export default function useReviewForm(learners: { name: string; email: string }[] = [], initialReviewerName = '') {
+export default function useReviewForm(
+  learners: { name: string; email: string }[] = [],
+  initialReviewerName = '',
+  userId = '',
+) {
+  // ── Draft autosave ─────────────────────────────────────────────────────────
+  const DRAFT_KEY = userId ? `lablens_draft_${userId}` : 'lablens_draft';
+
+  // Read saved draft once on mount (lazy initializer)
+  const [_draft] = useState<Record<string, unknown> | null>(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      const d = raw ? JSON.parse(raw) as Record<string, unknown> : null;
+      return (d?.learnerName || d?.selectedLab) ? d : null;
+    } catch { return null; }
+  });
+
+  const [draftRestored, setDraftRestored] = useState(!!_draft);
+  const dismissDraft = () => setDraftRestored(false);
+
   // ── Core form ─────────────────────────────────────────────────────────────
-  const [learnerName, setLearnerName] = useState('');
-  const [learnerEmail, setLearnerEmail] = useState('');
-  const [selectedLab, setSelectedLab] = useState('');
-  const [attempt, setAttempt] = useState('1st');
-  const [scores, setScores] = useState<Record<string, number>>({});
-  const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
-  const [strengths, setStrengths] = useState('');
-  const [improvements, setImprovements] = useState('');
-  const [otherRemarks, setOtherRemarks] = useState('');
-  const [redoLab, setRedoLab] = useState(false);
-  const [plagiarism, setPlagiarism] = useState(false);
+  const [learnerName, setLearnerName] = useState<string>(() => (_draft?.learnerName as string) ?? '');
+  const [learnerEmail, setLearnerEmail] = useState<string>(() => (_draft?.learnerEmail as string) ?? '');
+  const [selectedLab, setSelectedLab] = useState<string>(() => (_draft?.selectedLab as string) ?? '');
+  const [attempt, setAttempt] = useState<string>(() => (_draft?.attempt as string) ?? '1st');
+  const [scores, setScores] = useState<Record<string, number>>(() => (_draft?.scores as Record<string, number>) ?? {});
+  const [feedbacks, setFeedbacks] = useState<Record<string, string>>(() => (_draft?.feedbacks as Record<string, string>) ?? {});
+  const [strengths, setStrengths] = useState<string>(() => (_draft?.strengths as string) ?? '');
+  const [improvements, setImprovements] = useState<string>(() => (_draft?.improvements as string) ?? '');
+  const [otherRemarks, setOtherRemarks] = useState<string>(() => (_draft?.otherRemarks as string) ?? '');
+  const [redoLab, setRedoLab] = useState<boolean>(() => (_draft?.redoLab as boolean) ?? false);
+  const [plagiarism, setPlagiarism] = useState<boolean>(() => (_draft?.plagiarism as boolean) ?? false);
+  // reviewerName always comes from auth — never restored from draft
   const [reviewerName, setReviewerName] = useState(initialReviewerName);
-  const [reviewDate, setReviewDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reviewDate, setReviewDate] = useState<string>(() => (_draft?.reviewDate as string) ?? new Date().toISOString().split('T')[0]);
   const [report, setReport] = useState<Report | null>(null);
   const [copied, setCopied] = useState('');
   const reportRef = useRef<HTMLDivElement>(null);
 
   // ── Code input ────────────────────────────────────────────────────────────
-  const [codeSource, setCodeSource] = useState<'github' | 'paste'>('github');
-  const [repoUrl, setRepoUrl] = useState('');
-  const [branch, setBranch] = useState('');
-  const [pastedCode, setPastedCode] = useState('');
+  const [codeSource, setCodeSource] = useState<'github' | 'paste'>(() => (_draft?.codeSource as 'github' | 'paste') ?? 'github');
+  const [repoUrl, setRepoUrl] = useState<string>(() => (_draft?.repoUrl as string) ?? '');
+  const [branch, setBranch] = useState<string>(() => (_draft?.branch as string) ?? '');
+  const [pastedCode, setPastedCode] = useState<string>(() => (_draft?.pastedCode as string) ?? '');
   const [codeFiles, setCodeFiles] = useState<CodeFile[]>([]);
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('idle');
   const [fetchError, setFetchError] = useState('');
   const [truncatedNote, setTruncatedNote] = useState('');
 
   // ── Reviewer notes — manual (freeform) or derived (guided) ────────────────
-  const [_reviewerNotes, _setReviewerNotes] = useState('');
+  const [_reviewerNotes, _setReviewerNotes] = useState<string>(() => (_draft?.reviewerNotes as string) ?? '');
 
   // ── Code Review Assist state ───────────────────────────────────────────────
   const [assistMode, _setAssistMode] = useState<'guided' | 'freeform'>('guided');
@@ -200,6 +220,25 @@ export default function useReviewForm(learners: { name: string; email: string }[
 
   const handleRegenerateGuide = () => { void handleGenerateGuide(); };
 
+  // ── Draft autosave effect (debounced 800ms) ───────────────────────────────
+  useEffect(() => {
+    if (!learnerName && !selectedLab) return;
+    const id = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          learnerName, learnerEmail, selectedLab, attempt,
+          scores, feedbacks, strengths, improvements, otherRemarks,
+          reviewDate, redoLab, plagiarism,
+          reviewerNotes: _reviewerNotes,
+          codeSource, repoUrl, branch, pastedCode,
+          savedAt: new Date().toISOString(),
+        }));
+      } catch { /* storage quota exceeded — ignore */ }
+    }, 800);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learnerName, learnerEmail, selectedLab, attempt, scores, feedbacks, strengths, improvements, otherRemarks, reviewDate, redoLab, plagiarism, _reviewerNotes, codeSource, repoUrl, branch, pastedCode]);
+
   // ── GitHub fetch ──────────────────────────────────────────────────────────
   const handleFetchRepo = async () => {
     setFetchStatus('fetching');
@@ -349,6 +388,8 @@ export default function useReviewForm(learners: { name: string; email: string }[
     setAiSuggested(false); setAiEmailBody(''); setSendStatus('idle'); setSendError('');
     setScores({}); setFeedbacks({});
     setSavedReviewId(null); setSaveError('');
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    setDraftRestored(false);
     resetContext();
   };
 
@@ -380,6 +421,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
     lab, maxScore, totalScore, grade, passed, isValid, canAnalyze,
     report, copied,
     saveError,
+    draftRestored, dismissDraft,
     handleLearnerSelect, handleFetchRepo, handleAnalyze, handleSendEmail, copy, handleGenerate, reset, reportRef,
   };
 }

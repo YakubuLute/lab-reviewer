@@ -1,18 +1,76 @@
 import { useState } from 'react';
 import { getInitials } from '../data/learnerColors';
 import type { Cohort } from '../data/cohorts';
+import type { Review } from '../lib/api';
 import AddLearnerModal from '../components/AddLearnerModal';
 
 interface Props {
   cohort: Cohort;
   firstName: string;
+  reviews: Review[];
   onNewReview: () => void;
+  onStartReview: (learnerName: string, labName: string, attempt: string) => void;
   onAddLearner: (name: string, email?: string) => Promise<void>;
   onBulkAddLearners: (csv: string) => Promise<number>;
   onRemoveLearner: (learnerId: string) => void;
   onAddLab: (name: string, due: string) => void;
   onUpdateLabDue: (labId: string, due: string) => void;
   onRemoveLab: (labId: string) => void;
+}
+
+// ── Coverage matrix helpers ────────────────────────────────────────────────
+
+function getCoverageCell(reviews: Review[], learnerEmail: string, labName: string): Review | null {
+  return reviews
+    .filter((r) => r.learnerEmail.toLowerCase() === learnerEmail.toLowerCase() && r.labTitle === labName)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null;
+}
+
+function coverageCellMeta(r: Review | null): { bg: string; fg: string; label: string } {
+  if (!r) return { bg: 'var(--bg)', fg: 'var(--ink3)', label: '—' };
+  if (r.redoFlag) return { bg: 'var(--amber-t)', fg: 'var(--amber)', label: '↺ Redo' };
+  switch (r.grade) {
+    case 'Distinction': return { bg: 'var(--green-t)',  fg: 'var(--green-d)', label: 'Distinction' };
+    case 'Merit':       return { bg: 'var(--blue-t)',   fg: 'var(--blue)',    label: 'Merit' };
+    case 'Pass':        return { bg: 'var(--orange-t)', fg: 'var(--orange-d)', label: 'Pass' };
+    case 'Needs Work':  return { bg: 'var(--red-t)',    fg: 'var(--red)',     label: 'Needs Work' };
+    default:            return { bg: 'var(--line2)',    fg: 'var(--ink2)',    label: r.grade ?? 'Done' };
+  }
+}
+
+function exportCohortCSV(cohort: Cohort, reviews: Review[]) {
+  const { learners, labs, name: cohortName } = cohort;
+  const labNames = labs.map((l) => l.name);
+
+  const header = ['Name', 'Email', ...labNames, 'Avg Score', 'Passed Labs', 'Redo Flags', 'Flagged'];
+  const rows = learners.map((l) => {
+    const lrv = reviews.filter((r) => r.learnerEmail.toLowerCase() === l.email.toLowerCase());
+    const cells = labNames.map((lab) => {
+      const r = getCoverageCell(reviews, l.email, lab);
+      if (!r) return '—';
+      return r.redoFlag ? `${r.grade ?? 'Done'} (redo)` : (r.grade ?? 'Done');
+    });
+    const scored = lrv.filter((r) => r.totalScore != null);
+    const avg = scored.length
+      ? (scored.reduce((s, r) => s + (r.totalScore ?? 0), 0) / scored.length).toFixed(1) + '%'
+      : '—';
+    const passCount = lrv.filter((r) => r.passed).length;
+    const redoCount = lrv.filter((r) => r.redoFlag).length;
+    return [l.name, l.email, ...cells, avg, String(passCount), String(redoCount), l.flagged ? 'Yes' : ''];
+  });
+
+  const csv = [header, ...rows]
+    .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${cohortName.replace(/[^a-zA-Z0-9]/g, '_')}_grades_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -41,7 +99,7 @@ function labDueMeta(due: string): { bg: string; fg: string; label: string } {
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function CohortDashboardView({
-  cohort, firstName, onNewReview,
+  cohort, firstName, reviews, onNewReview, onStartReview,
   onAddLearner, onBulkAddLearners, onRemoveLearner,
   onAddLab, onUpdateLabDue, onRemoveLab,
 }: Props) {
@@ -106,12 +164,23 @@ export default function CohortDashboardView({
             {cohortSub}
           </p>
         </div>
-        <button
-          onClick={onNewReview}
-          style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'var(--orange)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', boxShadow: '0 3px 10px rgba(242,107,33,.32)', fontFamily: 'var(--sans)' }}
-        >
-          <span style={{ fontSize: 18, lineHeight: 1, marginTop: -1 }}>+</span> New Review
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {reviews.length > 0 && (
+            <button
+              onClick={() => exportCohortCSV(cohort, reviews)}
+              style={{ background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--line)', padding: '11px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--sans)' }}
+              title="Download cohort grades as CSV"
+            >
+              ↓ Export CSV
+            </button>
+          )}
+          <button
+            onClick={onNewReview}
+            style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'var(--orange)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', boxShadow: '0 3px 10px rgba(242,107,33,.32)', fontFamily: 'var(--sans)' }}
+          >
+            <span style={{ fontSize: 18, lineHeight: 1, marginTop: -1 }}>+</span> New Review
+          </button>
+        </div>
       </div>
 
       {/* ── Stats row ──────────────────────────────────────────────────────── */}
@@ -363,6 +432,72 @@ export default function CohortDashboardView({
           })
         )}
       </div>
+      {/* ── Review coverage matrix ──────────────────────────────────────── */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, boxShadow: 'var(--shadow)', overflow: 'hidden', marginTop: 22 }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: 'var(--ink)' }}>Review coverage</h2>
+          <span style={{ fontSize: 10.5, color: 'var(--ink3)', fontFamily: 'var(--mono)' }}>click a cell to start or continue</span>
+        </div>
+
+        {labs.length === 0 || learners.length === 0 ? (
+          <div style={{ padding: '28px 20px', textAlign: 'center', fontSize: 13, color: 'var(--ink3)' }}>
+            Add learners and labs above to see coverage.
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg)' }}>
+                  <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11.5, fontWeight: 600, color: 'var(--ink2)', borderBottom: '1px solid var(--line2)', position: 'sticky', left: 0, background: 'var(--bg)', zIndex: 1, whiteSpace: 'nowrap', minWidth: 160 }}>
+                    Learner
+                  </th>
+                  {labs.map((lab) => (
+                    <th key={lab.id} style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: 'var(--ink2)', borderBottom: '1px solid var(--line2)', whiteSpace: 'nowrap', minWidth: 110 }}>
+                      {lab.name.length > 22 ? lab.name.slice(0, 20) + '…' : lab.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {learners.map((L, i) => (
+                  <tr key={L.id} style={{ borderBottom: i < learners.length - 1 ? '1px solid var(--line2)' : 'none' }}>
+                    <td style={{ padding: '9px 16px', position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--line2)', zIndex: 1 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>{L.name}</div>
+                    </td>
+                    {labs.map((lab) => {
+                      const cell = getCoverageCell(reviews, L.email, lab.name);
+                      const meta = coverageCellMeta(cell);
+                      const isBlank = !cell;
+                      return (
+                        <td
+                          key={lab.id}
+                          onClick={() => onStartReview(L.name, lab.name, cell?.redoFlag ? '2nd' : '1st')}
+                          title={cell ? `${cell.grade ?? 'Reviewed'} · ${new Date(cell.createdAt).toLocaleDateString()}` : 'No review yet — click to start'}
+                          style={{ padding: '7px 10px', textAlign: 'center', cursor: 'pointer', transition: 'opacity .1s' }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.75'; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+                        >
+                          <span style={{
+                            display: 'inline-block', fontSize: 10.5, fontWeight: 600,
+                            padding: '3px 9px', borderRadius: 6,
+                            background: isBlank ? 'transparent' : meta.bg,
+                            color: isBlank ? 'var(--line)' : meta.fg,
+                            border: isBlank ? '1px dashed var(--line)' : 'none',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {meta.label}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

@@ -57,6 +57,7 @@ type FormState = {
   reportRef: React.RefObject<HTMLDivElement | null>;
   sendStatus: string; sendError: string;
   saveError: string;
+  draftRestored: boolean; dismissDraft: () => void;
   ccEmail: string; setCcEmail: (v: string) => void;
 };
 
@@ -351,6 +352,7 @@ export default function ReviewWorkspaceView({ form, onGoReport }: Props) {
     strengths, setStrengths, improvements, setImprovements, otherRemarks, setOtherRemarks,
     grade, totalScore, maxScore, passed,
     report, copied, copy, reset, handleSendEmail, sendStatus, sendError, reportRef,
+    draftRestored, dismissDraft,
   } = form;
 
   if (!selectedLab || !learnerName) {
@@ -372,6 +374,22 @@ export default function ReviewWorkspaceView({ form, onGoReport }: Props) {
   return (
     <>
       <ContextBar form={form} />
+
+      {draftRestored && (
+        <div style={{ maxWidth: 1240, margin: '14px auto 0', padding: '0 40px' }}>
+          <div style={{ background: 'var(--amber-t)', border: '1px solid var(--amber)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <span style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 500 }}>
+              Draft restored — your in-progress review was recovered automatically.
+            </span>
+            <button
+              onClick={dismissDraft}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--amber)', fontSize: 16, lineHeight: 1, padding: '0 2px', fontFamily: 'var(--sans)' }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ maxWidth: 1240, margin: '0 auto', padding: '26px 40px 70px', display: 'grid', gridTemplateColumns: '1fr 332px', gap: 26, alignItems: 'start' }}>
 
