@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import { requireAuth } from '../middleware/auth.js';
 import { LAB_DATA } from '../../shared/labs.js';
 import type { CodeFile, CriterionResult, AnalysisResult } from '../../shared/types.js';
 import { buildSystemPrompt, buildUserMessage } from '../prompts/reviewPrompt.js';
@@ -7,6 +8,7 @@ import { callClaude } from '../services/anthropic.js';
 import { cacheGet, cacheSet } from '../redis/cache.js';
 
 const router = Router();
+router.use(requireAuth);
 
 const ANALYZE_CACHE_TTL = 60 * 60; // 1 hour
 

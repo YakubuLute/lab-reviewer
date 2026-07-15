@@ -10,6 +10,8 @@ import cors from 'cors';
 
 import { rateLimit } from './middleware/rateLimit.js';
 import { runMigrations } from './db/migrate.js';
+import { closeSql } from './db/connection.js';
+import { closeRedis } from './redis/client.js';
 import authRouter from './routes/auth.js';
 import cohortsRouter from './routes/cohorts.js';
 import reviewsRouter from './routes/reviews.js';
@@ -31,7 +33,8 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 });
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-const ALLOWED_ORIGINS = ['http://localhost:5173', 'http://localhost:5174'];
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:5174')
+  .split(',').map((o) => o.trim()).filter(Boolean);
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
@@ -83,9 +86,23 @@ async function start() {
   }
 
   const PORT = process.env.PORT ?? 3001;
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`[server] listening on http://localhost:${PORT}`);
   });
+
+  async function shutdown(signal: string) {
+    console.log(`[server] ${signal} received — shutting down`);
+    server.close(async () => {
+      await Promise.allSettled([closeSql(), closeRedis()]);
+      console.log('[server] clean exit');
+      process.exit(0);
+    });
+    // Force exit if drain takes too long
+    setTimeout(() => { console.error('[server] forced exit after timeout'); process.exit(1); }, 10_000);
+  }
+
+  process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+  process.on('SIGINT',  () => { void shutdown('SIGINT'); });
 }
 
 start().catch((err) => {

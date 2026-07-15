@@ -26,3 +26,10 @@ export async function getRedis(): Promise<any | null> {
     return null;
   }
 }
+
+export async function closeRedis(): Promise<void> {
+  if (_client) {
+    await _client.quit().catch(() => _client?.disconnect());
+    _client = null;
+  }
+}

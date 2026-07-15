@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import { requireAuth } from '../middleware/auth.js';
 import { LAB_DATA } from '../../shared/labs.js';
 import type { CodeFile } from '../../shared/types.js';
 import { buildGuideSystemPrompt, buildGuideUserMessage } from '../prompts/guidePrompt.js';
@@ -7,6 +8,7 @@ import { callClaude } from '../services/anthropic.js';
 import { cacheGet, cacheSet } from '../redis/cache.js';
 
 const router = Router();
+router.use(requireAuth);
 
 const GUIDE_CACHE_TTL = 60 * 60 * 4; // 4 hours
 

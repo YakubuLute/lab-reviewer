@@ -1,8 +1,10 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import { requireAuth } from '../middleware/auth.js';
 import { fetchRepo } from '../services/githubFetch.js';
 import { cacheGet, cacheSet } from '../redis/cache.js';
 
 const router = Router();
+router.use(requireAuth);
 
 const GITHUB_CACHE_TTL = 60 * 60 * 2; // 2 hours
 

@@ -44,3 +44,10 @@ export async function getSql(): Promise<any> {
     );
   }
 }
+
+export async function closeSql(): Promise<void> {
+  if (_sql) {
+    await _sql.end();
+    _sql = null;
+  }
+}

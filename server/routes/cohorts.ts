@@ -229,24 +229,21 @@ router.patch('/cohorts/:id/learners/:learnerId', async (req: Request, res: Respo
     if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
 
     const patch = parsed.data;
-    // Build SET clause dynamically from provided fields
-    const sets: string[] = [];
-    const vals: unknown[] = [];
-    if (patch.name    !== undefined) { sets.push(`name = $${sets.length + 1}`);    vals.push(patch.name); }
-    if (patch.email   !== undefined) { sets.push(`email = $${sets.length + 1}`);   vals.push(patch.email); }
-    if (patch.done    !== undefined) { sets.push(`done = $${sets.length + 1}`);    vals.push(patch.done); }
-    if (patch.grade   !== undefined) { sets.push(`grade = $${sets.length + 1}`);   vals.push(patch.grade); }
-    if (patch.avg     !== undefined) { sets.push(`avg = $${sets.length + 1}`);     vals.push(patch.avg); }
-    if (patch.flagged !== undefined) { sets.push(`flagged = $${sets.length + 1}`); vals.push(patch.flagged); }
+    const updates: Record<string, unknown> = {};
+    if (patch.name    !== undefined) updates.name    = patch.name;
+    if (patch.email   !== undefined) updates.email   = patch.email;
+    if (patch.done    !== undefined) updates.done    = patch.done;
+    if (patch.grade   !== undefined) updates.grade   = patch.grade;
+    if (patch.avg     !== undefined) updates.avg     = patch.avg;
+    if (patch.flagged !== undefined) updates.flagged = patch.flagged;
 
-    if (sets.length === 0) { res.status(400).json({ error: 'No fields to update' }); return; }
+    if (Object.keys(updates).length === 0) { res.status(400).json({ error: 'No fields to update' }); return; }
 
-    vals.push(req.params.learnerId);
-    const [updated]: DbCohortLearner[] = await sql.unsafe(
-      `UPDATE cohort_learners SET ${sets.join(', ')} WHERE id = $${vals.length}
-       RETURNING id, cohort_id AS "cohortId", name, email, done, grade, avg, flagged, bg, fg`,
-      vals,
-    );
+    const [updated]: DbCohortLearner[] = await sql`
+      UPDATE cohort_learners SET ${sql(updates)}
+      WHERE id = ${req.params.learnerId}
+      RETURNING id, cohort_id AS "cohortId", name, email, done, grade, avg, flagged, bg, fg
+    `;
     if (!updated) { res.status(404).json({ error: 'Learner not found' }); return; }
     res.json(updated);
   } catch (err) { next(err); }
