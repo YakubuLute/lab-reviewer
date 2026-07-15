@@ -4,10 +4,10 @@ import { LAB_DATA } from '../data/labs';
 import { RATING_LABELS, PASSING_SCORE, getWeight, getMaxScore, gradeInfo } from '../data/scoring';
 import { buildEmailHTML } from '../builders/buildEmailHTML';
 import { buildExcelRow } from '../builders/buildExcelRow';
-import { fetchRepo, analyzeCode, sendEmail, saveReview, markReviewEmailSent } from '../lib/api';
+import { fetchRepo, analyzeCode, sendEmail, saveReview, markReviewEmailSent, generateGuide } from '../lib/api';
 import {
-  GUIDE_DATA, LAB_TO_GUIDE, compileGuideNotes,
-  type ExtraQuestion,
+  compileGuideNotes,
+  type Guide, type ExtraQuestion,
 } from '../data/guides';
 
 type FetchStatus = 'idle' | 'fetching' | 'done' | 'error';
@@ -51,6 +51,8 @@ export default function useReviewForm(learners: { name: string; email: string }[
   const [guideReady, setGuideReady] = useState(false);
   const [guideGenerating, setGuideGenerating] = useState(false);
   const [guideGenPct, setGuideGenPct] = useState(0);
+  const [dynamicGuide, setDynamicGuide] = useState<Guide | null>(null);
+  const [guideError, setGuideError] = useState('');
   const [guideNotes, setGuideNotes] = useState<Record<string, string>>({});
   const [guideDone, setGuideDone] = useState<Record<string, boolean>>({});
   const [guideSkipped, setGuideSkipped] = useState<Record<string, boolean>>({});
@@ -79,13 +81,9 @@ export default function useReviewForm(learners: { name: string; email: string }[
 
   // Compile guided answers into reviewer notes (replaces the effect that did this)
   const compiledNotes = useMemo(() => {
-    if (!guideReady || assistMode !== 'guided' || !selectedLab) return '';
-    const guideId = LAB_TO_GUIDE[selectedLab];
-    if (!guideId) return '';
-    const guide = GUIDE_DATA[guideId];
-    if (!guide) return '';
-    return compileGuideNotes(guide, learnerName, selectedLab, guideNotes, guideSkipped, guideExtra);
-  }, [guideReady, assistMode, selectedLab, learnerName, guideNotes, guideSkipped, guideExtra]);
+    if (!guideReady || assistMode !== 'guided' || !dynamicGuide) return '';
+    return compileGuideNotes(dynamicGuide, learnerName, selectedLab, guideNotes, guideSkipped, guideExtra);
+  }, [guideReady, assistMode, dynamicGuide, learnerName, selectedLab, guideNotes, guideSkipped, guideExtra]);
 
   // When guide is active + ready, reviewerNotes is the auto-compiled value.
   // In freeform mode (or before guide generates), it falls back to the manual state.
@@ -106,6 +104,8 @@ export default function useReviewForm(learners: { name: string; email: string }[
     setGuideReady(false);
     setGuideGenerating(false);
     setGuideGenPct(0);
+    setDynamicGuide(null);
+    setGuideError('');
     setGuideNotes({});
     setGuideDone({});
     setGuideSkipped({});
@@ -157,22 +157,47 @@ export default function useReviewForm(learners: { name: string; email: string }[
   const canAnalyze = isValid && !!lab;
 
   // ── Guide generate / regenerate ───────────────────────────────────────────
-  const handleGenerateGuide = () => {
-    const guideId = LAB_TO_GUIDE[selectedLab ?? ''];
-    if (!guideId || !GUIDE_DATA[guideId]) return;
+  const handleGenerateGuide = async () => {
+    if (!learnerName || !selectedLab || !attempt) return;
+    setGuideError('');
+    setGuideReady(false);
+    setGuideGenerating(true);
+    setGuideGenPct(0);
+    setDynamicGuide(null);
     setGuideNotes({});
     setGuideDone({});
     setGuideSkipped({});
     setGuideExtra([]);
     setOpenSections({});
-    setGuideGenPct(100);
-    setGuideGenerating(false);
-    setGuideReady(true);
+
+    // Animate progress while waiting for Claude
+    const timer = setInterval(() => {
+      setGuideGenPct((p) => Math.min(p + 8, 88));
+    }, 400);
+
+    const files: CodeFile[] =
+      codeSource === 'github' && codeFiles.length > 0
+        ? codeFiles
+        : codeSource === 'paste' && pastedCode.trim()
+          ? [{ path: 'pasted-code.txt', content: pastedCode.trim() }]
+          : [];
+
+    try {
+      const result = await generateGuide({ learnerName, labTitle: selectedLab, attempt, codeFiles: files });
+      clearInterval(timer);
+      setDynamicGuide(result);
+      setGuideGenPct(100);
+      setGuideGenerating(false);
+      setGuideReady(true);
+    } catch (err) {
+      clearInterval(timer);
+      setGuideError((err as Error).message);
+      setGuideGenerating(false);
+      setGuideGenPct(0);
+    }
   };
 
-  const handleRegenerateGuide = () => {
-    handleGenerateGuide();
-  };
+  const handleRegenerateGuide = () => { void handleGenerateGuide(); };
 
   // ── GitHub fetch ──────────────────────────────────────────────────────────
   const handleFetchRepo = async () => {
@@ -336,7 +361,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
     reviewerNotes, setReviewerNotes,
     // Assist
     assistMode, setAssistMode,
-    guideReady, guideGenerating, guideGenPct,
+    guideReady, guideGenerating, guideGenPct, dynamicGuide, guideError,
     guideNotes, setGuideNotes,
     guideDone, setGuideDone,
     guideSkipped, setGuideSkipped,

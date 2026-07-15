@@ -29,6 +29,7 @@ type FormState = {
   reviewerNotes: string; setReviewerNotes: (v: string) => void;
   assistMode: 'guided' | 'freeform'; setAssistMode: (mode: 'guided' | 'freeform') => void;
   guideReady: boolean; guideGenerating: boolean; guideGenPct: number;
+  dynamicGuide: import('../data/guides').Guide | null; guideError: string;
   guideNotes: Record<string, string>; setGuideNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   guideDone: Record<string, boolean>; setGuideDone: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   guideSkipped: Record<string, boolean>; setGuideSkipped: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
@@ -335,7 +336,7 @@ export default function ReviewWorkspaceView({ form, onGoReport }: Props) {
     codeSource, setCodeSource, repoUrl, setRepoUrl, branch, setBranch,
     pastedCode, setPastedCode, codeFiles, fetchStatus, fetchError, truncatedNote, handleFetchRepo,
     reviewerNotes, setReviewerNotes,
-    assistMode, setAssistMode, guideReady, guideGenerating, guideGenPct,
+    assistMode, setAssistMode, guideReady, guideGenerating, guideGenPct, dynamicGuide, guideError,
     guideNotes, setGuideNotes, guideDone, setGuideDone, guideSkipped, setGuideSkipped,
     guideExtra, setGuideExtra, newGuideQ, setNewGuideQ, openSections, setOpenSections,
     liveSession, setLiveSession, handleGenerateGuide, handleRegenerateGuide,
@@ -384,6 +385,7 @@ export default function ReviewWorkspaceView({ form, onGoReport }: Props) {
           {/* 02 · Code Review Assist */}
           <CodeReviewAssistCard
             learnerName={learnerName} selectedLab={selectedLab}
+            guide={dynamicGuide} guideError={guideError}
             reviewerNotes={reviewerNotes} setReviewerNotes={setReviewerNotes}
             assistMode={assistMode} setAssistMode={setAssistMode}
             guideReady={guideReady} guideGenerating={guideGenerating} guideGenPct={guideGenPct}

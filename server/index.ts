@@ -16,6 +16,7 @@ import reviewsRouter from './routes/reviews.js';
 import githubRouter from './routes/github.js';
 import analyzeRouter from './routes/analyze.js';
 import emailRouter from './routes/email.js';
+import guideRouter from './routes/guide.js';
 
 const app = express();
 
@@ -56,6 +57,7 @@ app.use('/api', defaultLimit, cohortsRouter);
 app.use('/api', defaultLimit, reviewsRouter);
 app.use('/api', defaultLimit, githubRouter);
 app.use('/api', aiLimit,      analyzeRouter);
+app.use('/api', aiLimit,      guideRouter);
 app.use('/api', emailLimit,   emailRouter);
 
 // ── Centralized error handler ─────────────────────────────────────────────────

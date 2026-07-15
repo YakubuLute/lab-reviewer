@@ -1,5 +1,5 @@
 import React from 'react';
-import { GUIDE_DATA, LAB_TO_GUIDE, LAB_SPECIALIZATION, type Guide, type GuideQuestion, type ExtraQuestion, type KindType } from '../data/guides';
+import { LAB_SPECIALIZATION, type Guide, type GuideQuestion, type ExtraQuestion, type KindType } from '../data/guides';
 
 // ── Color maps ─────────────────────────────────────────────────────────────
 
@@ -525,6 +525,8 @@ function LiveSession({
 interface Props {
   learnerName: string;
   selectedLab: string;
+  guide: Guide | null;
+  guideError?: string;
   reviewerNotes: string;
   setReviewerNotes: (v: string) => void;
   assistMode: 'guided' | 'freeform';
@@ -551,7 +553,8 @@ interface Props {
 }
 
 export default function CodeReviewAssistCard({
-  learnerName, selectedLab, reviewerNotes, setReviewerNotes,
+  learnerName, selectedLab, guide, guideError = '',
+  reviewerNotes, setReviewerNotes,
   assistMode, setAssistMode,
   guideReady, guideGenerating, guideGenPct,
   guideNotes, setGuideNotes,
@@ -564,8 +567,6 @@ export default function CodeReviewAssistCard({
   onGenerate, onRegenerate,
 }: Props) {
   const specialization = LAB_SPECIALIZATION[selectedLab] ?? 'Backend';
-  const guideId = LAB_TO_GUIDE[selectedLab];
-  const guide: Guide | null = guideId ? (GUIDE_DATA[guideId] ?? null) : null;
 
   // Totals
   const totalQ = guide
@@ -674,21 +675,20 @@ export default function CodeReviewAssistCard({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
                 <button
-                  onClick={guide ? onGenerate : undefined}
-                  disabled={!guide}
+                  onClick={onGenerate}
                   style={{
-                    background: guide ? 'var(--orange)' : 'var(--line2)', color: guide ? '#fff' : 'var(--ink3)',
+                    background: 'var(--orange)', color: '#fff',
                     border: 'none', padding: '13px 22px', borderRadius: 11, fontSize: 13.5,
-                    fontWeight: 600, cursor: guide ? 'pointer' : 'default',
-                    boxShadow: guide ? '0 4px 12px rgba(242,107,33,.3)' : 'none',
+                    fontWeight: 600, cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(242,107,33,.3)',
                     fontFamily: 'var(--sans)', transition: 'all 0.15s', whiteSpace: 'nowrap',
                   }}
                 >
                   ✦ Generate guided review
                 </button>
-                {!guide && (
-                  <p style={{ fontSize: 11, color: 'var(--ink3)', margin: 0, textAlign: 'right' }}>
-                    No guide available for this lab yet
+                {guideError && (
+                  <p style={{ fontSize: 11, color: 'var(--red)', margin: 0, textAlign: 'right', maxWidth: 260 }}>
+                    {guideError}
                   </p>
                 )}
                 <button

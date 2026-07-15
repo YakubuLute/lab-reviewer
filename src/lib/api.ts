@@ -184,3 +184,12 @@ export function analyzeCode(payload: object): Promise<AnalysisResult> {
 export function sendEmail(payload: { to: string; cc?: string; subject: string; html: string }): Promise<{ sent: boolean; messageId: string }> {
   return post('/api/send-email', payload);
 }
+
+export function generateGuide(payload: {
+  learnerName: string;
+  labTitle: string;
+  attempt: string;
+  codeFiles?: { path: string; content: string }[];
+}): Promise<import('../data/guides').Guide> {
+  return post('/api/generate-guide', payload);
+}
