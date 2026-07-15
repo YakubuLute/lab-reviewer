@@ -44,7 +44,10 @@ export default function MyDayView({ firstName, cohorts, reviews, onStartReview, 
     const emails = new Set(cohort.learners.map((l) => l.email.toLowerCase()));
     return reviews.filter((r) => !r.emailSentAt && emails.has(r.learnerEmail.toLowerCase())).length;
   };
-  const draftsForCohort = (cohort: Cohort) => waitingForCohort(cohort);
+  const reviewsForCohort = (cohort: Cohort) => {
+    const emails = new Set(cohort.learners.map((l) => l.email.toLowerCase()));
+    return reviews.filter((r) => emails.has(r.learnerEmail.toLowerCase())).length;
+  };
 
   // Show most recent 15 reviews in queue
   const recentReviews = [...reviews]
@@ -98,7 +101,7 @@ export default function MyDayView({ firstName, cohorts, reviews, onStartReview, 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 16, marginTop: 22 }}>
           {cohorts.map((c) => {
             const waiting = waitingForCohort(c);
-            const draftCount = draftsForCohort(c);
+            const draftCount = reviewsForCohort(c);
             const isEmpty = c.learners.length === 0;
             const chipBg  = isEmpty ? '#F0F2F5' : '#FFF1E8';
             const chipFg  = isEmpty ? '#8A93A2' : '#CF5310';
@@ -115,12 +118,12 @@ export default function MyDayView({ firstName, cohorts, reviews, onStartReview, 
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', color: waiting > 0 ? 'var(--amber)' : 'var(--ink3)' }}>{waiting}</span>
-                    <span style={{ fontSize: 11, color: 'var(--ink2)', marginLeft: 6 }}>drafts</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', color: 'var(--ink)' }}>{draftCount}</span>
+                    <span style={{ fontSize: 11, color: 'var(--ink2)', marginLeft: 6 }}>reviews</span>
                   </div>
                   <div style={{ width: 1, height: 20, background: 'var(--line)' }} />
                   <div>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', color: 'var(--ink)' }}>{draftCount}</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', color: waiting > 0 ? 'var(--amber)' : 'var(--ink3)' }}>{waiting}</span>
                     <span style={{ fontSize: 11, color: 'var(--ink2)', marginLeft: 6 }}>unsent</span>
                   </div>
                   <button

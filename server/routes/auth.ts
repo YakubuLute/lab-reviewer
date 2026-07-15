@@ -46,6 +46,9 @@ const ROLE_SPECIALIZATION: Record<string, string> = {
   'QA Trainer':       'QA & Testing',
 };
 
+const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS ?? 'amalitech.com')
+  .split(',').map((d) => d.trim().toLowerCase()).filter(Boolean);
+
 const RegisterSchema = z.object({
   firstName: z.string().min(1).max(100).trim(),
   lastName:  z.string().min(1).max(100).trim(),
@@ -76,6 +79,12 @@ router.post('/auth/register', async (req: Request, res: Response, next: NextFunc
       return;
     }
     const { firstName, lastName, email, role, password } = parsed.data;
+    const emailDomain = email.split('@')[1]?.toLowerCase() ?? '';
+    if (!ALLOWED_EMAIL_DOMAINS.includes(emailDomain)) {
+      res.status(403).json({ error: 'Registration is restricted to approved email domains.' });
+      return;
+    }
+
     const specialization = ROLE_SPECIALIZATION[role] ?? role;
     const sql = await getSql();
 

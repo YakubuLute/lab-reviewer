@@ -67,7 +67,7 @@ export default function CohortDashboardView({
   const flaggedN = learners.filter((l) => l.flagged).length;
 
   const STATS = [
-    { label: 'Cohort average',    value: cohortAvg, delta: withAvg.length ? '+3' : '', deltaColor: 'var(--green)', sub: 'vs. last lab' },
+    { label: 'Cohort average',    value: cohortAvg, delta: '', deltaColor: 'var(--green)', sub: 'across all reviews' },
     { label: 'Pass rate',         value: passRate,  delta: withAvg.length ? `${passCount}/${withAvg.length}` : '', deltaColor: 'var(--ink3)', sub: 'at or above 80%' },
     { label: 'Flagged',           value: String(flaggedN), delta: flaggedN ? 'review' : '', deltaColor: 'var(--amber)', sub: 'authorship concerns' },
     { label: 'Learners',          value: String(learners.length), delta: '', deltaColor: 'var(--ink3)', sub: `across ${labs.length} lab${labs.length === 1 ? '' : 's'}` },
@@ -215,7 +215,7 @@ export default function CohortDashboardView({
                     </span>
                     <button
                       title="Remove learner"
-                      onClick={(e) => { e.stopPropagation(); onRemoveLearner(L.id); }}
+                      onClick={(e) => { e.stopPropagation(); if (window.confirm(`Remove ${L.name} from this cohort?`)) onRemoveLearner(L.id); }}
                       style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--ink3)', fontSize: 14, lineHeight: 1, padding: '2px 4px', borderRadius: 5, opacity: 0 }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; (e.currentTarget as HTMLElement).style.color = 'var(--red)'; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0'; }}
@@ -351,7 +351,7 @@ export default function CohortDashboardView({
                 />
                 <button
                   title="Remove lab"
-                  onClick={() => onRemoveLab(l.id)}
+                  onClick={() => { if (window.confirm(`Remove "${l.name}" from this cohort?`)) onRemoveLab(l.id); }}
                   style={{ flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--ink3)', fontSize: 14, lineHeight: 1, padding: '4px 6px', borderRadius: 6 }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; (e.currentTarget as HTMLElement).style.background = 'var(--red-t)'; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--ink3)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}

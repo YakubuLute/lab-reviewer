@@ -86,26 +86,38 @@ export async function fetchRepo(repoUrl: string, branchOverride?: string): Promi
     (item) => item.type === 'blob' && shouldInclude(item.path) && item.size <= MAX_FILE_BYTES,
   );
 
-  let totalBytes = 0;
-  let truncatedNote: string | undefined;
-  const files: FetchRepoResult['files'] = [];
-
+  // Pre-select blobs using known sizes from tree to avoid over-fetching
+  const selectedBlobs: typeof blobs = [];
+  let estimatedTotal = 0;
   for (const blob of blobs) {
-    if (totalBytes >= MAX_TOTAL_BYTES) {
-      truncatedNote = `Only the first ~${Math.round(MAX_TOTAL_BYTES / 1000)} KB of source files were loaded. ${blobs.length - files.length} file(s) were omitted to keep the analysis request manageable.`;
-      break;
-    }
-    try {
-      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${blob.path}`;
-      const res = await fetch(rawUrl);
-      if (!res.ok) continue;
-      const content = await res.text();
-      totalBytes += content.length;
-      files.push({ path: blob.path, content });
-    } catch {
-      // skip files that fail to fetch
-    }
+    if (estimatedTotal + blob.size > MAX_TOTAL_BYTES) break;
+    selectedBlobs.push(blob);
+    estimatedTotal += blob.size;
   }
+
+  // Fetch selected blobs in parallel
+  const settled = await Promise.allSettled(
+    selectedBlobs.map(async (blob) => {
+      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${blob.path}`;
+      const rawRes = await fetch(rawUrl);
+      if (!rawRes.ok) return null;
+      return { path: blob.path, content: await rawRes.text() };
+    }),
+  );
+
+  const files: FetchRepoResult['files'] = [];
+  let totalBytes = 0;
+  for (const result of settled) {
+    if (result.status !== 'fulfilled' || !result.value) continue;
+    if (totalBytes + result.value.content.length > MAX_TOTAL_BYTES) break;
+    files.push(result.value);
+    totalBytes += result.value.content.length;
+  }
+
+  const omittedCount = blobs.length - selectedBlobs.length;
+  const truncatedNote: string | undefined = omittedCount > 0
+    ? `Only the first ~${Math.round(MAX_TOTAL_BYTES / 1000)} KB of source files were loaded. ${omittedCount} file(s) were omitted to keep the analysis request manageable.`
+    : undefined;
 
   return { files, ...(truncatedNote !== undefined && { truncatedNote }) };
 }

@@ -185,20 +185,19 @@ router.post('/cohorts/:id/learners/bulk', async (req: Request, res: Response, ne
     `;
     let offset = count;
 
-    const inserted: DbCohortLearner[] = [];
-    for (const row of rows) {
-      const resolvedEmail = row.email?.trim() ||
-        row.name.toLowerCase().split(/\s+/).slice(0, 2).join('.') + '@amalitech.org';
-      const [bg, fg] = AVATAR_PALETTE[offset % AVATAR_PALETTE.length] as [string, string];
-      offset++;
-      const [learner]: DbCohortLearner[] = await sql`
-        INSERT INTO cohort_learners (cohort_id, name, email, bg, fg)
-        VALUES (${req.params.id}, ${row.name}, ${resolvedEmail}, ${bg}, ${fg})
-        ON CONFLICT (cohort_id, email) DO NOTHING
-        RETURNING id, cohort_id AS "cohortId", name, email, done, grade, avg, flagged, bg, fg
-      `;
-      if (learner) inserted.push(learner);
-    }
+    const insertData = rows.map((row, i) => ({
+      cohort_id: req.params.id,
+      name: row.name,
+      email: row.email?.trim() || row.name.toLowerCase().split(/\s+/).slice(0, 2).join('.') + '@amalitech.org',
+      bg: (AVATAR_PALETTE[(offset + i) % AVATAR_PALETTE.length] as [string, string])[0],
+      fg: (AVATAR_PALETTE[(offset + i) % AVATAR_PALETTE.length] as [string, string])[1],
+    }));
+
+    const inserted: DbCohortLearner[] = await sql`
+      INSERT INTO cohort_learners ${sql(insertData, 'cohort_id', 'name', 'email', 'bg', 'fg')}
+      ON CONFLICT (cohort_id, email) DO NOTHING
+      RETURNING id, cohort_id AS "cohortId", name, email, done, grade, avg, flagged, bg, fg
+    `;
 
     res.status(201).json({ added: inserted.length, learners: inserted });
   } catch (err) { next(err); }

@@ -71,6 +71,9 @@ router.post('/reviews', async (req: Request, res: Response, next: NextFunction) 
 
 router.get('/reviews', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const limit  = Math.min(Math.max(parseInt(String(req.query.limit  ?? '100'), 10) || 100, 1), 500);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'),   10) || 0, 0);
+
     const sql  = await getSql();
     const rows: DbReview[] = await sql`
       SELECT
@@ -84,7 +87,7 @@ router.get('/reviews', async (req: Request, res: Response, next: NextFunction) =
       FROM reviews
       WHERE reviewer_id = ${req.jwtUser!.userId}
       ORDER BY created_at DESC
-      LIMIT 100
+      LIMIT ${limit} OFFSET ${offset}
     `;
     res.json(rows);
   } catch (err) { next(err); }

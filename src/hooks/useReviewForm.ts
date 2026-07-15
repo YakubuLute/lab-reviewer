@@ -14,7 +14,7 @@ type FetchStatus = 'idle' | 'fetching' | 'done' | 'error';
 type AnalyzeStatus = 'idle' | 'analyzing' | 'done' | 'error';
 type SendStatus = 'idle' | 'sending' | 'done' | 'error';
 
-export default function useReviewForm(learners: { name: string; email: string }[] = []) {
+export default function useReviewForm(learners: { name: string; email: string }[] = [], initialReviewerName = '') {
   // ── Core form ─────────────────────────────────────────────────────────────
   const [learnerName, setLearnerName] = useState('');
   const [learnerEmail, setLearnerEmail] = useState('');
@@ -27,7 +27,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
   const [otherRemarks, setOtherRemarks] = useState('');
   const [redoLab, setRedoLab] = useState(false);
   const [plagiarism, setPlagiarism] = useState(false);
-  const [reviewerName, setReviewerName] = useState('');
+  const [reviewerName, setReviewerName] = useState(initialReviewerName);
   const [reviewDate, setReviewDate] = useState(new Date().toISOString().split('T')[0]);
   const [report, setReport] = useState<Report | null>(null);
   const [copied, setCopied] = useState('');
@@ -69,6 +69,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
 
   // ── Review persistence ────────────────────────────────────────────────────
   const [savedReviewId, setSavedReviewId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState('');
 
   // ── Email sending ─────────────────────────────────────────────────────────
   const [ccEmail, setCcEmail] = useState('');
@@ -299,9 +300,10 @@ export default function useReviewForm(learners: { name: string; email: string }[
     setReport({ ...data, html: buildEmailHTML(data), excelRow: buildExcelRow(data), subject: `Lab Review: ${selectedLab} \u2014 ${learnerName} (${grade.label})`, aiEmailBody });
     setSendStatus('idle');
     setSendError('');
+    setSaveError('');
     setTimeout(() => reportRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
-    // Persist review to DB (fire-and-forget — does not block the UI)
+    // Persist review to DB (non-blocking — does not interrupt the UI flow)
     saveReview({
       learnerName, learnerEmail,
       labTitle: selectedLab,
@@ -315,7 +317,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
       otherRemarks,
       redoFlag: redoLab,
       plagiarismConcern: plagiarism,
-    }).then((saved) => setSavedReviewId(saved.id)).catch(() => {/* silent */});
+    }).then((saved) => setSavedReviewId(saved.id)).catch((err) => setSaveError((err as Error).message));
   };
 
   // ── Send email ────────────────────────────────────────────────────────────
@@ -327,7 +329,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
       await sendEmail({ to: report.learnerEmail, cc: ccEmail.trim() || undefined, subject: report.subject, html: report.html });
       setSendStatus('done');
       if (savedReviewId) {
-        markReviewEmailSent(savedReviewId).catch(() => {/* silent */});
+        markReviewEmailSent(savedReviewId).catch((err) => setSaveError((err as Error).message));
       }
     } catch (err) {
       setSendError((err as Error).message);
@@ -346,7 +348,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
     setAnalyzeStatus('idle'); setAnalyzeError('');
     setAiSuggested(false); setAiEmailBody(''); setSendStatus('idle'); setSendError('');
     setScores({}); setFeedbacks({});
-    setSavedReviewId(null);
+    setSavedReviewId(null); setSaveError('');
     resetContext();
   };
 
@@ -377,6 +379,7 @@ export default function useReviewForm(learners: { name: string; email: string }[
     learners,
     lab, maxScore, totalScore, grade, passed, isValid, canAnalyze,
     report, copied,
+    saveError,
     handleLearnerSelect, handleFetchRepo, handleAnalyze, handleSendEmail, copy, handleGenerate, reset, reportRef,
   };
 }

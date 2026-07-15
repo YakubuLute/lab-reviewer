@@ -55,7 +55,10 @@ export default function App() {
   const [createCohortOpen, setCreateCohortOpen] = useState(false);
   // cohorts is always called but only used when user is present
   const cohortsCtx = useCohorts(user?.id ?? '__guest__');
-  const form = useReviewForm(cohortsCtx.currentCohort?.learners ?? []);
+  const form = useReviewForm(
+    cohortsCtx.currentCohort?.learners ?? [],
+    user ? `${user.firstName} ${user.lastName}` : '',
+  );
 
   const [reviews, setReviews] = useState<Review[]>([]);
   useEffect(() => {
@@ -187,7 +190,7 @@ export default function App() {
         )}
 
         {activeView === 'profile' && (
-          <LearnersView />
+          <LearnersView cohorts={cohorts} reviews={reviews} />
         )}
 
       </main>

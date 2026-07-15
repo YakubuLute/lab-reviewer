@@ -56,6 +56,7 @@ type FormState = {
   reset: () => void;
   reportRef: React.RefObject<HTMLDivElement | null>;
   sendStatus: string; sendError: string;
+  saveError: string;
   ccEmail: string; setCcEmail: (v: string) => void;
 };
 
@@ -75,7 +76,7 @@ function SlideToggle({ value, onChange, onColor = 'var(--amber)' }: { value: boo
 
 // ── Right panel (live score + flags + action) ──────────────────────────────
 function RightPanel({ form, onGoReport }: { form: FormState; onGoReport: () => void }) {
-  const { totalScore, maxScore, grade, passed, attempt, lab, scores, redoLab, setRedoLab, plagiarism, setPlagiarism, isValid, canAnalyze, analyzeStatus, aiSuggested, handleAnalyze, handleGenerate, report } = form;
+  const { totalScore, maxScore, grade, passed, attempt, lab, scores, redoLab, setRedoLab, plagiarism, setPlagiarism, isValid, canAnalyze, analyzeStatus, aiSuggested, handleAnalyze, handleGenerate, report, saveError } = form;
   const isAnalyzing = analyzeStatus === 'analyzing';
   const scorePct = maxScore > 0 ? (parseFloat(totalScore) / maxScore) * 100 : 0;
   const passPct = (PASSING_SCORE / maxScore) * 100;
@@ -219,6 +220,12 @@ function RightPanel({ form, onGoReport }: { form: FormState; onGoReport: () => v
       {!isValid && (
         <p style={{ fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--ink3)', textAlign: 'center', margin: 0, lineHeight: 1.5 }}>
           Nothing sends automatically. You review the full report first.
+        </p>
+      )}
+
+      {saveError && (
+        <p style={{ fontSize: 10.5, color: 'var(--red)', background: 'var(--red-t)', borderRadius: 8, padding: '7px 10px', margin: 0, lineHeight: 1.4 }}>
+          Save failed: {saveError}
         </p>
       )}
     </div>

@@ -10,8 +10,8 @@ import cors from 'cors';
 
 import { rateLimit } from './middleware/rateLimit.js';
 import { runMigrations } from './db/migrate.js';
-import { closeSql } from './db/connection.js';
-import { closeRedis } from './redis/client.js';
+import { getSql, closeSql } from './db/connection.js';
+import { getRedis, closeRedis } from './redis/client.js';
 import authRouter from './routes/auth.js';
 import cohortsRouter from './routes/cohorts.js';
 import reviewsRouter from './routes/reviews.js';
@@ -29,6 +29,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
   next();
 });
 
@@ -53,7 +54,36 @@ const aiLimit      = rateLimit({ max: 60,  windowMs: 60_000, message: 'AI analys
 const emailLimit   = rateLimit({ max: 20,  windowMs: 60_000, message: 'Email rate limit reached, please wait.' });
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-app.get('/api/health', (_req: Request, res: Response) => res.json({ ok: true }));
+app.get('/api/health', async (_req: Request, res: Response) => {
+  const checks: Record<string, string> = {};
+
+  try {
+    if (process.env.DATABASE_URL) {
+      const sql = await getSql();
+      await sql`SELECT 1`;
+      checks.db = 'ok';
+    } else {
+      checks.db = 'unconfigured';
+    }
+  } catch {
+    checks.db = 'error';
+  }
+
+  try {
+    const redis = await getRedis();
+    if (redis) {
+      await redis.ping();
+      checks.redis = 'ok';
+    } else {
+      checks.redis = 'unconfigured';
+    }
+  } catch {
+    checks.redis = 'error';
+  }
+
+  const allOk = Object.values(checks).every((v) => v === 'ok' || v === 'unconfigured');
+  res.status(allOk ? 200 : 503).json({ ok: allOk, checks });
+});
 
 app.use('/api', authLimit,    authRouter);
 app.use('/api', defaultLimit, cohortsRouter);

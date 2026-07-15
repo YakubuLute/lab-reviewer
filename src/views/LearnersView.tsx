@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { getInitials, learnerColor } from '../data/learnerColors';
-import { getCohorts } from '../lib/api';
-import { getReviews } from '../lib/api';
 import type { Review } from '../lib/api';
 import type { Cohort, CohortLearner } from '../data/cohorts';
 
@@ -58,38 +56,18 @@ function buildSummaries(cohorts: Cohort[], reviews: Review[]): LearnerSummary[] 
   return summaries;
 }
 
+interface Props {
+  cohorts: Cohort[];
+  reviews: Review[];
+}
+
 // ── Main view ──────────────────────────────────────────────────────────────
 
-export default function LearnersView() {
-  const [cohorts, setCohorts] = useState<Cohort[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function LearnersView({ cohorts, reviews }: Props) {
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
 
-  useEffect(() => {
-    Promise.all([getCohorts(), getReviews()])
-      .then(([c, r]) => { setCohorts(c); setReviews(r); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
   const summaries = buildSummaries(cohorts, reviews);
-
-  useEffect(() => {
-    if (!selectedEmail && summaries.length > 0) {
-      setSelectedEmail(summaries[0]!.learner.email);
-    }
-  }, [summaries.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const sel = summaries.find((s) => s.learner.email === selectedEmail) ?? summaries[0] ?? null;
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--ink2)', fontSize: 13 }}>
-        Loading learners...
-      </div>
-    );
-  }
 
   if (summaries.length === 0) {
     return (
