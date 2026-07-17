@@ -15,6 +15,7 @@ import { getRedis, closeRedis } from './redis/client.js';
 import authRouter from './routes/auth.js';
 import cohortsRouter from './routes/cohorts.js';
 import reviewsRouter from './routes/reviews.js';
+import rubricsRouter from './routes/rubrics.js';
 import githubRouter from './routes/github.js';
 import analyzeRouter from './routes/analyze.js';
 import emailRouter from './routes/email.js';
@@ -88,6 +89,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 app.use('/api', authLimit,    authRouter);
 app.use('/api', defaultLimit, cohortsRouter);
 app.use('/api', defaultLimit, reviewsRouter);
+app.use('/api', defaultLimit, rubricsRouter);
 app.use('/api', defaultLimit, githubRouter);
 app.use('/api', aiLimit,      analyzeRouter);
 app.use('/api', aiLimit,      guideRouter);

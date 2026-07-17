@@ -42,7 +42,7 @@ router.get('/cohorts', async (req: Request, res: Response, next: NextFunction) =
         ORDER BY cl.created_at ASC
       `,
       sql`
-        SELECT cl.id, cl.cohort_id AS "cohortId", cl.name, cl.due
+        SELECT cl.id, cl.cohort_id AS "cohortId", cl.name, cl.due, cl.rubric_id AS "rubricId"
         FROM cohort_labs cl
         INNER JOIN cohorts c ON cl.cohort_id = c.id
         WHERE c.instructor_id = ${userId}
@@ -54,7 +54,7 @@ router.get('/cohorts', async (req: Request, res: Response, next: NextFunction) =
       id: c.id, name: c.name, track: c.track, instructorId: c.instructorId,
       createdAt: (c.createdAt as Date).toISOString(),
       learners: allLearners.filter((l) => l.cohortId === c.id),
-      labs: allLabs.filter((l) => l.cohortId === c.id).map((l) => ({ ...l, due: l.due ?? '' })),
+      labs: allLabs.filter((l) => l.cohortId === c.id).map((l) => ({ ...l, due: l.due ?? '', rubricId: l.rubricId ?? undefined })),
     }));
 
     res.json(result);
@@ -267,8 +267,9 @@ router.delete('/cohorts/:id/learners/:learnerId', async (req: Request, res: Resp
 // ── POST /api/cohorts/:id/labs ────────────────────────────────────────────────
 
 const AddLabSchema = z.object({
-  name: z.string().min(1).max(200).trim(),
-  due:  z.string().optional().default(''),
+  name:     z.string().min(1).max(200).trim(),
+  due:      z.string().optional().default(''),
+  rubricId: z.string().uuid().optional(),
 });
 
 router.post('/cohorts/:id/labs', async (req: Request, res: Response, next: NextFunction) => {
@@ -285,12 +286,12 @@ router.post('/cohorts/:id/labs', async (req: Request, res: Response, next: NextF
     if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
 
     const [lab]: DbCohortLab[] = await sql`
-      INSERT INTO cohort_labs (cohort_id, name, due)
-      VALUES (${req.params.id}, ${parsed.data.name}, ${parsed.data.due || null})
-      RETURNING id, cohort_id AS "cohortId", name, due
+      INSERT INTO cohort_labs (cohort_id, name, due, rubric_id)
+      VALUES (${req.params.id}, ${parsed.data.name}, ${parsed.data.due || null}, ${parsed.data.rubricId ?? null})
+      RETURNING id, cohort_id AS "cohortId", name, due, rubric_id AS "rubricId"
     `;
 
-    res.status(201).json({ ...lab, due: lab.due ?? '' });
+    res.status(201).json({ ...lab, due: lab.due ?? '', rubricId: lab.rubricId ?? undefined });
   } catch (err) { next(err); }
 });
 
@@ -310,10 +311,10 @@ router.patch('/cohorts/:id/labs/:labId', async (req: Request, res: Response, nex
     const [updated]: DbCohortLab[] = await sql`
       UPDATE cohort_labs SET due = ${due || null}
       WHERE id = ${req.params.labId}
-      RETURNING id, cohort_id AS "cohortId", name, due
+      RETURNING id, cohort_id AS "cohortId", name, due, rubric_id AS "rubricId"
     `;
     if (!updated) { res.status(404).json({ error: 'Lab not found' }); return; }
-    res.json({ ...updated, due: updated.due ?? '' });
+    res.json({ ...updated, due: updated.due ?? '', rubricId: updated.rubricId ?? undefined });
   } catch (err) { next(err); }
 });
 

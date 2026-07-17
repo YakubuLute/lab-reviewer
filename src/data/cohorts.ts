@@ -23,6 +23,7 @@ export interface CohortLab {
   id: string;
   name: string;
   due: string;
+  rubricId?: string;
 }
 
 export interface Cohort {
@@ -169,8 +170,8 @@ export function useCohorts(instructorId: string) {
 
   // ── Lab mutations ─────────────────────────────────────────────────────────
 
-  const addLab = useCallback(async (cohortId: string, name: string, due: string): Promise<void> => {
-    const lab = await addLabApi(cohortId, name, due);
+  const addLab = useCallback(async (cohortId: string, name: string, due: string, rubricId?: string): Promise<void> => {
+    const lab = await addLabApi(cohortId, name, due, rubricId);
     setCohorts(prev => prev.map(c =>
       c.id === cohortId ? { ...c, labs: [...c.labs, lab] } : c
     ));

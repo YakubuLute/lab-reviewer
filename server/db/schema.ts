@@ -38,6 +38,25 @@ export interface DbCohortLab {
   cohortId: string;
   name: string;
   due: string | null;
+  rubricId: string | null;
+}
+
+export interface DbRubricTemplate {
+  id: string;
+  ownerId: string | null;
+  name: string;
+  description: string;
+  createdAt: Date;
+}
+
+export interface DbRubricCriterion {
+  id: string;
+  rubricId: string;
+  criterionKey: string;
+  name: string;
+  description: string;
+  weight: number;
+  sortOrder: number;
 }
 
 export interface DbReview {

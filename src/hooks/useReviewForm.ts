@@ -4,7 +4,7 @@ import { LAB_DATA } from '../data/labs';
 import { RATING_LABELS, PASSING_SCORE, getWeight, getMaxScore, gradeInfo } from '../data/scoring';
 import { buildEmailHTML } from '../builders/buildEmailHTML';
 import { buildExcelRow } from '../builders/buildExcelRow';
-import { fetchRepo, analyzeCode, sendEmail, saveReview, markReviewEmailSent, generateGuide } from '../lib/api';
+import { fetchRepo, analyzeCode, sendEmail, saveReview, markReviewEmailSent, generateGuide, type RubricTemplate } from '../lib/api';
 import {
   compileGuideNotes,
   type Guide, type ExtraQuestion,
@@ -18,6 +18,8 @@ export default function useReviewForm(
   learners: { name: string; email: string }[] = [],
   initialReviewerName = '',
   userId = '',
+  rubrics: RubricTemplate[] = [],
+  cohortLabs: { name: string; rubricId?: string }[] = [],
 ) {
   // ── Draft autosave ─────────────────────────────────────────────────────────
   const DRAFT_KEY = userId ? `lablens_draft_${userId}` : 'lablens_draft';
@@ -96,8 +98,29 @@ export default function useReviewForm(
   const [sendStatus, setSendStatus] = useState<SendStatus>('idle');
   const [sendError, setSendError] = useState('');
 
+  // ── Lab resolution (prefer cohort rubric over LAB_DATA) ──────────────────
+  function resolveLab(labName: string) {
+    if (!labName) return null;
+    const rubricId = cohortLabs.find((l) => l.name === labName)?.rubricId;
+    if (rubricId) {
+      const rubric = rubrics.find((r) => r.id === rubricId);
+      if (rubric?.criteria?.length) {
+        return {
+          description: rubric.description,
+          criteria: rubric.criteria.map((c) => ({
+            id: c.criterionKey,
+            name: c.name,
+            description: c.description,
+            weight: c.weight,
+          })),
+        };
+      }
+    }
+    return LAB_DATA[labName] ?? null;
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────
-  const lab = selectedLab ? LAB_DATA[selectedLab] ?? null : null;
+  const lab = resolveLab(selectedLab);
   const maxScore = getMaxScore(attempt);
 
   // Compile guided answers into reviewer notes (replaces the effect that did this)
@@ -142,7 +165,7 @@ export default function useReviewForm(
     setSelectedLab(newLab);
     if (newLab) {
       const init: Record<string, number> = {};
-      LAB_DATA[newLab]?.criteria.forEach((c) => { init[c.id] = 0; });
+      resolveLab(newLab)?.criteria.forEach((c) => { init[c.id] = 0; });
       setScores(init);
       setFeedbacks({});
       setAiSuggested(false);

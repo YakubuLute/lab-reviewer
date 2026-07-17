@@ -1,19 +1,20 @@
 import { useState } from 'react';
 import { getInitials } from '../data/learnerColors';
 import type { Cohort } from '../data/cohorts';
-import type { Review } from '../lib/api';
+import type { Review, RubricTemplate } from '../lib/api';
 import AddLearnerModal from '../components/AddLearnerModal';
 
 interface Props {
   cohort: Cohort;
   firstName: string;
   reviews: Review[];
+  rubrics: (RubricTemplate & { criteriaCount: number })[];
   onNewReview: () => void;
   onStartReview: (learnerName: string, labName: string, attempt: string) => void;
   onAddLearner: (name: string, email?: string) => Promise<void>;
   onBulkAddLearners: (csv: string) => Promise<number>;
   onRemoveLearner: (learnerId: string) => void;
-  onAddLab: (name: string, due: string) => void;
+  onAddLab: (name: string, due: string, rubricId?: string) => void;
   onUpdateLabDue: (labId: string, due: string) => void;
   onRemoveLab: (labId: string) => void;
 }
@@ -99,7 +100,7 @@ function labDueMeta(due: string): { bg: string; fg: string; label: string } {
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function CohortDashboardView({
-  cohort, firstName, reviews, onNewReview, onStartReview,
+  cohort, firstName, reviews, rubrics, onNewReview, onStartReview,
   onAddLearner, onBulkAddLearners, onRemoveLearner,
   onAddLab, onUpdateLabDue, onRemoveLab,
 }: Props) {
@@ -112,6 +113,7 @@ export default function CohortDashboardView({
   const [addLabOpen, setAddLabOpen] = useState(false);
   const [newLabName, setNewLabName] = useState('');
   const [newLabDue,  setNewLabDue]  = useState('');
+  const [newLabRubricId, setNewLabRubricId] = useState('');
 
   // ── Computed stats ────────────────────────────────────────────────────────
   const withAvg = learners.filter((l) => l.avg != null);
@@ -136,8 +138,8 @@ export default function CohortDashboardView({
   function handleAddLab() {
     const name = newLabName.trim();
     if (!name) return;
-    onAddLab(name, newLabDue);
-    setNewLabName(''); setNewLabDue(''); setAddLabOpen(false);
+    onAddLab(name, newLabDue, newLabRubricId || undefined);
+    setNewLabName(''); setNewLabDue(''); setNewLabRubricId(''); setAddLabOpen(false);
   }
 
   // ── Date header ───────────────────────────────────────────────────────────
@@ -346,7 +348,7 @@ export default function CohortDashboardView({
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 10.5, color: 'var(--ink3)', fontFamily: 'var(--mono)', letterSpacing: '.02em' }}>SUBMISSIONS CLOSE 23:59 ON THE DUE DATE</span>
             <button
-              onClick={() => { setAddLabOpen(!addLabOpen); setNewLabName(''); setNewLabDue(''); }}
+              onClick={() => { setAddLabOpen(!addLabOpen); setNewLabName(''); setNewLabDue(''); setNewLabRubricId(''); }}
               style={{ background: 'var(--orange-t)', color: 'var(--orange-d)', border: '1px solid var(--orange-t2)', padding: '6px 12px', borderRadius: 8, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--sans)' }}
             >
               + Add lab
@@ -366,6 +368,32 @@ export default function CohortDashboardView({
                 onKeyDown={(e) => e.key === 'Enter' && handleAddLab()}
               />
             </div>
+            {rubrics.length > 0 && (
+              <div style={{ flex: '0 0 200px' }}>
+                <label style={{ fontSize: 11, color: 'var(--ink2)', fontWeight: 500, display: 'block', marginBottom: 5 }}>Rubric</label>
+                <select
+                  value={newLabRubricId}
+                  onChange={(e) => setNewLabRubricId(e.target.value)}
+                  style={{ width: '100%', border: '1px solid var(--line)', borderRadius: 9, padding: '8px 10px', fontSize: 12, fontFamily: 'var(--sans)', color: 'var(--ink)', outline: 'none', background: '#fff' }}
+                >
+                  <option value="">Default (LAB_DATA)</option>
+                  {rubrics.filter((r) => r.ownerId === null).length > 0 && (
+                    <optgroup label="System">
+                      {rubrics.filter((r) => r.ownerId === null).map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {rubrics.filter((r) => r.ownerId !== null).length > 0 && (
+                    <optgroup label="My Rubrics">
+                      {rubrics.filter((r) => r.ownerId !== null).map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+            )}
             <div>
               <label style={{ fontSize: 11, color: 'var(--ink2)', fontWeight: 500, display: 'block', marginBottom: 5 }}>Deadline</label>
               <input

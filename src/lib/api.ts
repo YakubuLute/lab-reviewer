@@ -43,6 +43,10 @@ function post<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, { method: 'POST', body: JSON.stringify(body) });
 }
 
+function put<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, { method: 'PUT', body: JSON.stringify(body) });
+}
+
 function patch<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
 }
@@ -113,8 +117,8 @@ export function bulkAddLearnersApi(
   return post(`/api/cohorts/${cohortId}/learners/bulk`, { csv });
 }
 
-export function addLabApi(cohortId: string, name: string, due: string): Promise<CohortLab> {
-  return post(`/api/cohorts/${cohortId}/labs`, { name, due });
+export function addLabApi(cohortId: string, name: string, due: string, rubricId?: string): Promise<CohortLab> {
+  return post(`/api/cohorts/${cohortId}/labs`, { name, due, ...(rubricId && { rubricId }) });
 }
 
 export function updateLabDueApi(cohortId: string, labId: string, due: string): Promise<CohortLab> {
@@ -192,4 +196,69 @@ export function generateGuide(payload: {
   codeFiles?: { path: string; content: string }[];
 }): Promise<import('../data/guides').Guide> {
   return post('/api/generate-guide', payload);
+}
+
+// ── Rubrics ───────────────────────────────────────────────────────────────────
+
+export interface RubricCriterion {
+  id: string;
+  rubricId: string;
+  criterionKey: string;
+  name: string;
+  description: string;
+  weight: number;
+  sortOrder: number;
+}
+
+export interface RubricTemplate {
+  id: string;
+  ownerId: string | null;
+  name: string;
+  description: string;
+  createdAt: string;
+  criteriaCount?: number;
+  criteria?: RubricCriterion[];
+}
+
+export function getRubrics(): Promise<(RubricTemplate & { criteriaCount: number })[]> {
+  return get('/api/rubrics');
+}
+
+export function getRubric(id: string): Promise<RubricTemplate & { criteria: RubricCriterion[] }> {
+  return get(`/api/rubrics/${id}`);
+}
+
+export function createRubric(name: string, description: string): Promise<RubricTemplate & { criteria: RubricCriterion[] }> {
+  return post('/api/rubrics', { name, description });
+}
+
+export function updateRubricApi(id: string, name: string, description: string): Promise<RubricTemplate> {
+  return put(`/api/rubrics/${id}`, { name, description });
+}
+
+export function deleteRubricApi(id: string): Promise<{ ok: boolean }> {
+  return del(`/api/rubrics/${id}`);
+}
+
+export function cloneRubricApi(id: string): Promise<RubricTemplate & { criteria: RubricCriterion[] }> {
+  return post(`/api/rubrics/${id}/clone`, {});
+}
+
+export function addRubricCriterion(
+  rubricId: string,
+  criterion: { name: string; description: string; weight: number; criterionKey?: string },
+): Promise<RubricCriterion> {
+  return post(`/api/rubrics/${rubricId}/criteria`, criterion);
+}
+
+export function updateRubricCriterion(
+  rubricId: string,
+  criterionId: string,
+  criterion: { name: string; description: string; weight: number },
+): Promise<RubricCriterion> {
+  return put(`/api/rubrics/${rubricId}/criteria/${criterionId}`, criterion);
+}
+
+export function deleteRubricCriterion(rubricId: string, criterionId: string): Promise<{ ok: boolean }> {
+  return del(`/api/rubrics/${rubricId}/criteria/${criterionId}`);
 }

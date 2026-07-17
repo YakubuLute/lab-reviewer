@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getReviews, type Review } from './lib/api';
+import { getReviews, getRubrics, type Review, type RubricTemplate } from './lib/api';
 import { useAuth } from './auth/useAuth';
 import { useCohorts } from './data/cohorts';
 import useReviewForm from './hooks/useReviewForm';
@@ -55,17 +55,22 @@ export default function App() {
   const [createCohortOpen, setCreateCohortOpen] = useState(false);
   // cohorts is always called but only used when user is present
   const cohortsCtx = useCohorts(user?.id ?? '__guest__');
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [rubrics, setRubrics] = useState<(RubricTemplate & { criteriaCount: number })[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    getReviews().then(setReviews).catch(() => {});
+    getRubrics().then(setRubrics).catch(() => {});
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const form = useReviewForm(
     cohortsCtx.currentCohort?.learners ?? [],
     user ? `${user.firstName} ${user.lastName}` : '',
     user?.id ?? '',
+    rubrics,
+    cohortsCtx.currentCohort?.labs ?? [],
   );
-
-  const [reviews, setReviews] = useState<Review[]>([]);
-  useEffect(() => {
-    if (!user) return;
-    getReviews().then(setReviews).catch(() => {});
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auth gate ────────────────────────────────────────────────────────────
   if (!user) {
@@ -133,12 +138,13 @@ export default function App() {
               cohort={currentCohort}
               firstName={user.firstName}
               reviews={reviews}
+              rubrics={rubrics}
               onNewReview={() => setActiveView('workspace')}
               onStartReview={(name, lab, att) => { startReview(name, lab, att); }}
               onAddLearner={(name, email) => addLearner(currentCohort.id, name, email)}
               onBulkAddLearners={(csv) => bulkAddLearners(currentCohort.id, csv)}
               onRemoveLearner={(lid) => removeLearner(currentCohort.id, lid)}
-              onAddLab={(name, due) => addLab(currentCohort.id, name, due)}
+              onAddLab={(name, due, rubricId) => addLab(currentCohort.id, name, due, rubricId)}
               onUpdateLabDue={(labId, due) => updateLabDue(currentCohort.id, labId, due)}
               onRemoveLab={(labId) => removeLab(currentCohort.id, labId)}
             />

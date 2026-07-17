@@ -10,6 +10,30 @@ const SCHEMA_SQL = `
     created_at     TIMESTAMPTZ DEFAULT NOW()
   );
 
+  CREATE TABLE IF NOT EXISTS rubric_templates (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id    UUID        REFERENCES users(id) ON DELETE CASCADE,
+    name        TEXT        NOT NULL,
+    description TEXT        NOT NULL DEFAULT '',
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS rubric_templates_system_name
+    ON rubric_templates (name) WHERE owner_id IS NULL;
+
+  CREATE TABLE IF NOT EXISTS rubric_criteria (
+    id            UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+    rubric_id     UUID    NOT NULL REFERENCES rubric_templates(id) ON DELETE CASCADE,
+    criterion_key TEXT    NOT NULL,
+    name          TEXT    NOT NULL,
+    description   TEXT    NOT NULL DEFAULT '',
+    weight        INTEGER NOT NULL,
+    sort_order    INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS rubric_criteria_rubric_key
+    ON rubric_criteria (rubric_id, criterion_key);
+
   CREATE TABLE IF NOT EXISTS cohorts (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     instructor_id UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -40,8 +64,11 @@ const SCHEMA_SQL = `
     cohort_id  UUID    NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,
     name       TEXT    NOT NULL,
     due        TEXT,
+    rubric_id  UUID    REFERENCES rubric_templates(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
+
+  ALTER TABLE cohort_labs ADD COLUMN IF NOT EXISTS rubric_id UUID REFERENCES rubric_templates(id) ON DELETE SET NULL;
 
   CREATE TABLE IF NOT EXISTS reviews (
     id                 UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -80,6 +107,29 @@ export async function runMigrations(): Promise<void> {
   try {
     await sql.unsafe(SCHEMA_SQL);
     console.log('[db] schema ready');
+
+    // Seed system rubrics (idempotent — only runs when none exist)
+    const [row] = await sql`SELECT COUNT(*)::int AS count FROM rubric_templates WHERE owner_id IS NULL` as [{ count: number }];
+    if (row.count === 0) {
+      const { LAB_DATA } = await import('../../shared/labs.js');
+      for (const [labName, lab] of Object.entries(LAB_DATA)) {
+        const [template] = await sql`
+          INSERT INTO rubric_templates (owner_id, name, description)
+          VALUES (NULL, ${labName}, ${lab.description})
+          ON CONFLICT DO NOTHING
+          RETURNING id
+        ` as [{ id: string }];
+        if (!template) continue;
+        for (let i = 0; i < lab.criteria.length; i++) {
+          const c = lab.criteria[i]!;
+          await sql`
+            INSERT INTO rubric_criteria (rubric_id, criterion_key, name, description, weight, sort_order)
+            VALUES (${template.id}, ${c.id}, ${c.name}, ${c.description}, ${c.weight}, ${i})
+          `;
+        }
+      }
+      console.log('[db] seeded 6 system rubrics');
+    }
   } finally {
     await sql.end();
   }
